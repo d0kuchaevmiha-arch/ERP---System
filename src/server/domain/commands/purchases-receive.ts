@@ -6,14 +6,16 @@ import { audit, changed, factFields } from '../context';
 import { DECIDE_ROLES, orgPurchase, orgWarehouse, requireProjectWrite, requireSameProject } from '../authz';
 import { businessRule } from '../errors';
 import { quantity, uuid } from '../schemas';
+import { bump, expectedVersion, requireVersion } from '../versions';
 
 export default defineCommand({
   name: 'purchases.receive', offline: 'conflictable', roles: DECIDE_ROLES, deniedMessage: 'Недостаточно прав для согласования или приемки',
-  schema: z.object({ purchaseId: uuid, quantity, warehouseId: uuid.optional() }),
+  schema: z.object({ purchaseId: uuid, quantity, warehouseId: uuid.optional(), version: expectedVersion }),
   async authorize(tx, ctx, input) {
     // FOR UPDATE: параллельные приёмки одной заявки идут по очереди.
     const p = await orgPurchase(tx, ctx.actor, input.purchaseId, true);
     await requireProjectWrite(tx, ctx.actor, p.projectId);
+    requireVersion(p.version, input.version);
     if (!['ordered', 'partial'].includes(p.status)) throw businessRule('Для приемки нужен согласованный заказ');
     const warehouseId = input.warehouseId || p.warehouseId;
     if (!warehouseId) throw businessRule('Выберите склад');
@@ -26,7 +28,7 @@ export default defineCommand({
     const q = String(input.quantity);
     const received = sql`${purchases.receivedQuantity} + ${q}::numeric`;
     const [updated] = await tx.update(purchases)
-      .set({ receivedQuantity: received, status: sql`case when ${received} = ${purchases.quantity} then 'received' else 'partial' end` })
+      .set({ receivedQuantity: received, status: sql`case when ${received} = ${purchases.quantity} then 'received' else 'partial' end`, ...bump(purchases.version) })
       .where(and(eq(purchases.id, p.id), sql`${received} <= ${purchases.quantity}`))
       .returning();
     if (!updated) {

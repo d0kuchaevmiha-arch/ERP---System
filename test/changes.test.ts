@@ -78,7 +78,7 @@ describe('журнал изменений (§4.2)', () => {
     const u = await run<{ user: { id: string } }>(d, 'users.create', { name: 'Прораб', email: `f-${org.id}@t.local`, role: 'foreman' });
     await run(d, 'access.set', { userId: u.user.id, projectId: project.id, permission: 'edit' });
     const entities = new Set((await t.db.select().from(changeLog).where(and(gt(changeLog.seq, since), eq(changeLog.organizationId, org.id)))).map(r => r.entity));
-    for (const e of ['projects', 'tasks', 'materials', 'warehouses', 'counterparties', 'contracts', 'purchases', 'approvals', 'stock_movements', 'expenses', 'users', 'project_access'])
+    for (const e of ['projects', 'tasks', 'materials', 'warehouses', 'counterparties', 'contracts', 'purchases', 'approvals', 'stock_movements', 'expenses', 'task_progress_log', 'users', 'project_access'])
       expect(entities, e).toContain(e);
   });
 });

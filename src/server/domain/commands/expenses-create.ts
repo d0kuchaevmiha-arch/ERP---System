@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { budgetLines, expenses, notifications } from '@/db/schema';
 import { defineCommand } from '../command';
 import { audit } from '../context';
@@ -18,10 +18,11 @@ export default defineCommand({
   async execute(tx, ctx, input) {
     const [row] = await tx.insert(expenses).values({ projectId: input.projectId, category: input.category, description: input.description, amount: String(input.amount), taskId: input.taskId || null, contractId: input.contractId || null, counterpartyId: input.counterpartyId || null, incurredAt: input.incurredAt || new Date().toISOString().slice(0, 10) }).returning();
     await audit(tx, ctx, 'create', 'expense', row.id, null, row);
-    const [totals] = await tx.select({ total: sql<string>`coalesce(sum(${expenses.amount}),0)` }).from(expenses).where(eq(expenses.projectId, input.projectId));
-    const [budget] = await tx.select({ total: sql<string>`coalesce(sum(${budgetLines.amount}),0)` }).from(budgetLines).where(eq(budgetLines.projectId, input.projectId));
-    const over = Number(totals.total) > Number(budget.total);
-    if (over) await tx.insert(notifications).values({ userId: ctx.actor.id, title: 'Превышен бюджет объекта', body: `Расходы: ${totals.total} ₽; бюджет: ${budget.total} ₽`, href: `/projects/${input.projectId}` });
-    return { ...row, budgetWarning: over };
+    // Суммы и сравнение — в NUMERIC на стороне БД.
+    const actual = sql<string>`(select coalesce(sum(${expenses.amount}),0) from ${expenses} where ${expenses.projectId} = ${input.projectId})`;
+    const budget = sql<string>`(select coalesce(sum(${budgetLines.amount}),0) from ${budgetLines} where ${budgetLines.projectId} = ${input.projectId})`;
+    const { rows: [totals] } = await tx.execute<{ actual: string; budget: string; over: boolean }>(sql`select ${actual} as actual, ${budget} as budget, ${actual} > ${budget} as over`);
+    if (totals.over) await tx.insert(notifications).values({ userId: ctx.actor.id, title: 'Превышен бюджет объекта', body: `Расходы: ${totals.actual} ₽; бюджет: ${totals.budget} ₽`, href: `/projects/${input.projectId}` });
+    return { ...row, budgetWarning: totals.over };
   },
 });

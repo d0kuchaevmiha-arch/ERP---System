@@ -31,7 +31,7 @@ describe('команды: сквозной сценарий директора',
     expect(pending.status).toBe('pending');
 
     expect((await run<Row>(director, 'approvals.decide', { purchaseId: purchase.id, decision: 'approve' })).status).toBe('ordered');
-    await expect(run(director, 'approvals.decide', { purchaseId: purchase.id, decision: 'approve' })).rejects.toThrow(/Нет ожидающего согласования/);
+    await expect(run(director, 'approvals.decide', { purchaseId: purchase.id, decision: 'approve' })).rejects.toThrow(/уже решена: согласована/);
 
     await run(director, 'purchases.receive', { purchaseId: purchase.id, warehouseId: warehouse.id, quantity: 10 });
     await expect(run(director, 'purchases.receive', { purchaseId: purchase.id, quantity: 1 })).rejects.toThrow(/согласованный заказ/);

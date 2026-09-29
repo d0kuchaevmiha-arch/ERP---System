@@ -22,8 +22,9 @@ export async function requireProjectWrite(tx: Tx, actor: Actor, projectId: strin
 }
 
 // Поиск сущностей строго в пределах организации пользователя: чужая сущность = «не найдено».
-export async function orgTask(tx: Tx, actor: Actor, id: string) {
-  const [row] = await tx.select({ task: tasks }).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId)).where(and(eq(tasks.id, id), eq(projects.organizationId, actor.organizationId)));
+export async function orgTask(tx: Tx, actor: Actor, id: string, lock = false) {
+  const q = tx.select({ task: tasks }).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId)).where(and(eq(tasks.id, id), eq(projects.organizationId, actor.organizationId)));
+  const [row] = lock ? await q.for('update', { of: tasks }) : await q;
   if (!row) throw notFound('Работа не найдена');
   return row.task;
 }

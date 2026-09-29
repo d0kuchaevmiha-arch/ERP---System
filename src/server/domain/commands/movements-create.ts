@@ -24,9 +24,10 @@ export default defineCommand({
   async execute(tx, ctx, input, { m, projectId }) {
     // Остаток проверяется под блокировкой пары материал+склад: параллельные списания идут по очереди.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.materialId + input.warehouseId}))`);
-    const [balance] = await tx.select({ total: sql<string>`coalesce(sum(case when ${stockMovements.type} in ('receipt','return','transfer_in') then ${stockMovements.quantity} else -${stockMovements.quantity} end),0)` }).from(stockMovements).where(and(eq(stockMovements.materialId, input.materialId), eq(stockMovements.warehouseId, input.warehouseId)));
+    const total = sql<string>`coalesce(sum(case when ${stockMovements.type} in ('receipt','return','transfer_in') then ${stockMovements.quantity} else -${stockMovements.quantity} end),0)`;
+    const [balance] = await tx.select({ total, enough: sql<boolean>`${total} >= ${String(input.quantity)}::numeric` }).from(stockMovements).where(and(eq(stockMovements.materialId, input.materialId), eq(stockMovements.warehouseId, input.warehouseId)));
     const outgoing = input.type === 'issue' || input.type === 'writeoff';
-    if (outgoing && Number(balance.total) < input.quantity) throw businessRule(`Невозможно списать ${input.quantity} ${m.unit} материала «${m.name}»: доступно только ${balance.total} ${m.unit}.`);
+    if (outgoing && !balance.enough) throw businessRule(`Невозможно списать ${input.quantity} ${m.unit} материала «${m.name}»: доступно только ${balance.total} ${m.unit}.`);
     const [row] = await tx.insert(stockMovements).values({ materialId: input.materialId, warehouseId: input.warehouseId, projectId, taskId: input.taskId || null, type: input.type, quantity: String(input.quantity), note: input.note }).returning();
     await audit(tx, ctx, input.type, 'stock_movement', row.id, null, row);
     if (outgoing && projectId) {

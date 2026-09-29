@@ -3,6 +3,7 @@ import { eq, max } from 'drizzle-orm';
 import { db } from '@/db';
 import { changeLog } from '@/db/schema';
 import { SESSION_COOKIE, verifySessionToken } from '@/server/auth/session';
+import { bearerToken, checkProtocol, verifyDeviceToken } from '@/server/auth/device';
 import { getHub } from '@/server/realtime/instance';
 
 export const dynamic = 'force-dynamic';
@@ -13,8 +14,12 @@ const HEARTBEAT_MS = 25_000;
 // Сигналы об изменениях (§6.5): `event: changes data:{maxSeq}` только по объектам пользователя, без данных.
 // Клиент в ответ перечитывает данные (браузер — сводку, десктоп в P3 — pull). Авторизация — cookie (device token — P3).
 export async function GET(req: NextRequest) {
+  // Браузер — cookie; десктоп — токен устройства и заголовок версии протокола.
+  const deviceToken = bearerToken(req.headers);
+  if (deviceToken) { const proto = checkProtocol(req.headers); if (proto) return Response.json({ error: { message: proto.message } }, { status: proto.status }); }
   const token = req.cookies.get(SESSION_COOKIE)?.value;
-  const user = await verifySessionToken(db, token);
+  const who = async () => deviceToken ? (await verifyDeviceToken(db, deviceToken))?.user ?? null : verifySessionToken(db, token);
+  const user = await who();
   if (!user) return Response.json({ error: { message: 'Войдите в систему' } }, { status: 401 });
   if (user.mustChangePassword) return Response.json({ error: { message: 'Смените пароль, чтобы продолжить' } }, { status: 403 });
 
@@ -33,7 +38,7 @@ export async function GET(req: NextRequest) {
         try { controller.close(); } catch { /* уже закрыт */ }
       };
       const revalidate = async () => {
-        const fresh = await verifySessionToken(db, token);
+        const fresh = await who();
         return fresh && !fresh.mustChangePassword ? fresh : null;
       };
       write(`retry: 3000\nevent: ready\ndata: ${JSON.stringify({ maxSeq: seq ?? 0 })}\n\n`);

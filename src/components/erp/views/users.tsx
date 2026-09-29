@@ -6,7 +6,8 @@ import { roleLabel } from '@/lib/permissions';
 import { newOpKey } from '../op-key';
 
 type Access = { projectId: string; permission: 'view' | 'edit' };
-type UserRow = { id: string; name: string; email: string; role: string; isActive: boolean; mustChangePassword: boolean; access: Access[] };
+type Device = { id: string; name: string; appVersion: string; registeredAt: string; lastSyncAt: string | null; revokedAt: string | null };
+type UserRow = { id: string; name: string; email: string; role: string; isActive: boolean; mustChangePassword: boolean; access: Access[]; devices: Device[] };
 type Secret = { email: string; password: string } | null;
 
 const assignable = Object.keys(roleLabel);
@@ -97,7 +98,7 @@ export function UsersView() {
         {error ? <Empty title="Список недоступен" hint={error} /> : !rows ? <Empty title="Загрузка…" /> : rows.length === 0 ? <Empty title="Пользователей нет" /> : (
           <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Таблица пользователей, прокручивается по горизонтали">
             <table className="tbl">
-              <thead><tr><th>Пользователь</th><th>Роль</th><th>Состояние</th><th>Объекты</th><th className="r">Действия</th></tr></thead>
+              <thead><tr><th>Пользователь</th><th>Роль</th><th>Состояние</th><th>Объекты</th><th>Устройства</th><th className="r">Действия</th></tr></thead>
               <tbody>{rows.map(u => {
                 const self = u.email === user?.email;
                 const protectedAdmin = u.role === 'super_admin' && user?.role !== 'super_admin';
@@ -112,6 +113,7 @@ export function UsersView() {
                     </td>
                     <td>{!u.isActive ? <span className="tag" data-tone="err">Заблокирован</span> : u.mustChangePassword ? <span className="tag" data-tone="warn">Ждёт смены пароля</span> : <span className="tag" data-tone="ok">Активен</span>}</td>
                     <td>{['director', 'super_admin'].includes(u.role) ? <span className="muted">Все объекты</span> : <button type="button" className="link" onClick={() => setOpen(open === u.id ? '' : u.id)} aria-expanded={open === u.id}>{u.access.length} из {data.projects.length}</button>}</td>
+                    <td>{u.devices.length === 0 ? <span className="muted">—</span> : <button type="button" className="link" onClick={() => setOpen(open === `dev:${u.id}` ? '' : `dev:${u.id}`)} aria-expanded={open === `dev:${u.id}`}>{u.devices.filter(d => !d.revokedAt).length} действ.</button>}</td>
                     <td className="r">
                       {!locked && (u.isActive
                         ? <ConfirmButton tone="plain" label="Заблокировать" confirmLabel="Заблокировать" onConfirm={() => act(() => call(`/api/admin/users/${u.id}`, 'PATCH', { isActive: false }), 'Пользователь заблокирован, сессии завершены').then(() => undefined)} />
@@ -120,7 +122,7 @@ export function UsersView() {
                     </td>
                   </tr>,
                   open === u.id && (
-                    <tr key={`${u.id}-access`}><td colSpan={5}>
+                    <tr key={`${u.id}-access`}><td colSpan={6}>
                       <ul className="report-list">{data.projects.map(p => {
                         const current = u.access.find(a => a.projectId === p.id)?.permission || '';
                         return (
@@ -131,6 +133,15 @@ export function UsersView() {
                           </li>
                         );
                       })}</ul>
+                    </td></tr>
+                  ),
+                  open === `dev:${u.id}` && (
+                    <tr key={`${u.id}-devices`}><td colSpan={6}>
+                      <ul className="report-list">{u.devices.map(d => (
+                        <li key={d.id}><span><b>{d.name}</b> · версия {d.appVersion} · подключено {new Date(d.registeredAt).toLocaleDateString('ru-RU')}{d.lastSyncAt && <> · последняя синхронизация {new Date(d.lastSyncAt).toLocaleString('ru-RU')}</>}</span>
+                          {d.revokedAt ? <span className="tag" data-tone="err">Отозвано</span> : <ConfirmButton tone="plain" label="Отозвать" confirmLabel="Отозвать устройство" onConfirm={() => act(() => call(`/api/admin/devices/${d.id}/revoke`, 'POST'), 'Устройство отозвано').then(() => undefined)} />}
+                        </li>
+                      ))}</ul>
                     </td></tr>
                   ),
                 ];

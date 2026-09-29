@@ -24,12 +24,13 @@ import usersResetPassword from './commands/users-reset-password';
 import accessSet from './commands/access-set';
 import accessRemove from './commands/access-remove';
 import authChangePassword from './commands/auth-change-password';
+import devicesRevoke from './commands/devices-revoke';
 
 type AnyCommand = Command<any, any, unknown>;
 const list: AnyCommand[] = [
   organizationsCreate, projectsCreate, tasksCreate, progressSet, budgetsCreate, expensesCreate, materialsCreate, warehousesCreate,
   counterpartiesCreate, contractsCreate, purchasesCreate, approvalsDecide, purchasesReceive, movementsCreate,
-  usersCreate, usersUpdate, usersResetPassword, accessSet, accessRemove, authChangePassword,
+  usersCreate, usersUpdate, usersResetPassword, accessSet, accessRemove, authChangePassword, devicesRevoke,
 ];
 export const commands: Record<string, AnyCommand> = Object.fromEntries(list.map(c => [c.name, c]));
 
@@ -72,7 +73,8 @@ async function execute(ctx: CommandContext, name: string, raw: unknown, hash?: s
       if (hash) await claimOp(tx, ctx, name, hash);
       const scope = await cmd.authorize(tx, ctx, input);
       const result = await cmd.execute(tx, ctx, input, scope);
-      await flushChanges(tx, ctx.actor.organizationId, ctx.changes);
+      const signal = await flushChanges(tx, ctx.actor.organizationId, ctx.changes);
+      if (ctx.meta && signal) ctx.meta.maxSeq = signal.maxSeq;
       if (hash) await storeResult(tx, ctx.prov.opId!, result);
       return result;
     });

@@ -7,6 +7,7 @@ import { USER_ADMIN_ROLES } from '../authz';
 import { forbidden } from '../errors';
 import { assertCanAssignRole, manageableUser, publicUser, role } from '../users';
 import { uuid } from '../schemas';
+import { revokeUserDevices } from '../devices';
 
 // Имя, роль, блокировка. Блокировка сразу отзывает все сессии (session_version + 1).
 // Себя нельзя заблокировать или сменить себе роль — так в организации всегда остаётся тот, кто управляет доступом.
@@ -27,6 +28,7 @@ export default defineCommand({
       ...(input.isActive !== undefined && { isActive: input.isActive }),
       ...(blocking && { sessionVersion: sql`${users.sessionVersion} + 1` }),
     }).where(eq(users.id, before.id)).returning();
+    if (blocking) await revokeUserDevices(tx, row.id);
     await audit(tx, ctx, blocking ? 'block' : input.isActive === true && !before.isActive ? 'unblock' : 'update', 'user', row.id, publicUser(before), publicUser(row));
     changed(ctx, 'users', row.id, null);
     return publicUser(row);

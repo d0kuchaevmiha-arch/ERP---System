@@ -8,6 +8,7 @@ import { USER_ADMIN_ROLES } from '../authz';
 import { forbidden } from '../errors';
 import { manageableUser, publicUser, temporaryPassword } from '../users';
 import { uuid } from '../schemas';
+import { revokeUserDevices } from '../devices';
 
 // Сброс: новый временный пароль, обязательная смена при входе, все текущие сессии отозваны.
 export default defineCommand({
@@ -21,6 +22,7 @@ export default defineCommand({
   async execute(tx, ctx, _input, target) {
     const password = temporaryPassword();
     const [row] = await tx.update(users).set({ passwordHash: hashPassword(password), mustChangePassword: true, sessionVersion: sql`${users.sessionVersion} + 1` }).where(eq(users.id, target.id)).returning();
+    await revokeUserDevices(tx, row.id);
     await audit(tx, ctx, 'reset_password', 'user', row.id, null, { mustChangePassword: true });
     changed(ctx, 'users', row.id, null);
     return { user: publicUser(row), temporaryPassword: password };

@@ -16,7 +16,8 @@ export type Provenance = {
 };
 
 // changes — что изменила команда; runCommand пишет их в change_log в конце транзакции (§4.2).
-export type CommandContext = { db: Db; actor: Actor; ip: string | null; userAgent: string | null; prov: Provenance; changes: Change[] };
+// meta — куда runCommand кладёт номер журнала изменений после commit (клиент ждёт, пока реплика его догонит).
+export type CommandContext = { db: Db; actor: Actor; ip: string | null; userAgent: string | null; prov: Provenance; changes: Change[]; meta?: { maxSeq?: number } };
 // То, что передаёт вызывающий: происхождение необязательно, недостающее заполняет сервер.
 export type CommandRequest = Omit<CommandContext, 'prov' | 'changes'> & { prov?: Partial<Omit<Provenance, 'serverReceivedAt'>> };
 

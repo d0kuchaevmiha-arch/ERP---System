@@ -1,13 +1,13 @@
 import type { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { currentUser } from '@/lib/session';
+import { userFromRequest } from '@/server/http/request-user';
 import { listUsers } from '@/server/read/users';
 import { commandResponse, errorResponse, toErrorResponse } from '@/server/http/command-route';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const user = await currentUser();
+export async function GET(req: NextRequest) {
+  const user = (await userFromRequest(req))?.user;
   if (!user) return errorResponse('Войдите в систему', 401);
   if (user.mustChangePassword) return errorResponse('Смените пароль, чтобы продолжить', 403);
   try { return Response.json({ data: await listUsers(db, user) }); } catch (e) { return toErrorResponse(e); }

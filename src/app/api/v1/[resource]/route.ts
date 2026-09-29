@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { organizations, projects, tasks, budgetLines, expenses, materials, warehouses, stockMovements, purchases, counterparties, contracts, approvals } from '@/db/schema';
-import { currentUser } from '@/lib/session';
+import { userFromRequest } from '@/server/http/request-user';
 import { httpCommands } from '@/server/domain/registry';
 import { commandResponse, errorResponse as error } from '@/server/http/command-route';
 import { getOverview } from '@/lib/overview';
@@ -10,7 +10,7 @@ const tables = { organizations, projects, tasks, budgets: budgetLines, expenses,
 export async function GET(req: NextRequest, { params }: { params: Promise<{resource:string}> }) {
   const { resource } = await params;
   // Без входа данные не отдаются никогда (§5.2.2); сводка — только в пределах организации и доступных объектов.
-  const user = await currentUser(); if (!user) return error('Войдите в систему',401);
+  const user = (await userFromRequest(req))?.user; if (!user) return error('Войдите в систему',401);
   if (user.mustChangePassword) return error('Смените пароль, чтобы продолжить',403);
   if (resource === 'overview') { try { return Response.json(await getOverview(user)); } catch { return error('Данные пока недоступны. Примените миграции БД и загрузите демонстрационные данные.',503); } }
   if (!(resource in tables)) return error('Ресурс не найден',404);

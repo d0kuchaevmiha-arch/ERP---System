@@ -5,6 +5,7 @@ import type { SessionUser } from '@/server/auth/session';
 import { isOrgWide } from '@/server/domain/authz';
 import { CHANGES_CHANNEL, type ChangeSignal } from '@/server/domain/changes';
 import { visibleProjectIds } from '@/server/read/overview';
+import { PRUNED_COUNTER } from '@/server/sync/service';
 
 // Хаб изменений (§6.5): одно LISTEN-соединение на экземпляр приложения раздаёт сигналы подписчикам SSE.
 // Пример из жизни: один диспетчер слушает рацию и обзванивает только тех, кого касается сообщение.
@@ -62,7 +63,14 @@ export class ChangeHub {
 
   // Удаление записей журнала старше срока хранения (§4.2).
   async prune() {
-    try { await this.opts.db.execute(sql`delete from change_log where changed_at < now() - make_interval(days => ${CHANGE_LOG_RETENTION_DAYS})`); }
+    // Запоминаем по организациям номер последней удалённой записи: клиент, отставший сильнее, получит 410 и загрузит данные заново.
+    try {
+      await this.opts.db.execute(sql`
+        with gone as (delete from change_log where changed_at < now() - make_interval(days => ${CHANGE_LOG_RETENTION_DAYS}) returning organization_id, seq)
+        insert into org_counters (organization_id, name, value)
+        select organization_id, ${PRUNED_COUNTER}, max(seq) from gone group by organization_id
+        on conflict (organization_id, name) do update set value = greatest(org_counters.value, excluded.value)`);
+    }
     catch (e) { this.log(`change_log prune: ${(e as Error).message}`); }
   }
 

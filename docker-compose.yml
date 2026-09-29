@@ -31,5 +31,22 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
+  # Тестовая БД для интеграционных тестов: `docker compose --profile test up -d db-test`.
+  # Обычный `docker compose up` её не запускает; данные только в памяти.
+  db-test:
+    image: postgres:16-alpine
+    profiles: [test]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:54329:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
 volumes:
   pgdata:

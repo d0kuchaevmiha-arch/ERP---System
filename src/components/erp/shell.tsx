@@ -117,12 +117,30 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), tone === 'err' ? 8000 : 4500);
   }, []);
 
+  const [live, setLive] = useState(false);
+  const [syncedAt, setSyncedAt] = useState<Date | null>(null);
   const refresh = useCallback(async () => {
     try {
       const r = await fetch('/api/v1/overview', { cache: 'no-store' });
-      if (r.ok) setData(await r.json());
+      // Сессию отозвали (блокировка, сброс пароля) — данные на экране не оставляем.
+      if (r.status === 401) { window.location.assign('/login'); return; }
+      if (r.ok) { setData(await r.json()); setSyncedAt(new Date()); }
     } catch { /* остаёмся на текущих данных */ }
   }, []);
+
+  // Реальное время (§6.5): сигнал SSE «данные изменились» → через 1,5 с перечитываем сводку
+  // (несколько изменений подряд — одно обновление). Без SSE — опрос раз в 30 с.
+  useEffect(() => {
+    if (!user) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const later = () => { clearTimeout(timer); timer = setTimeout(() => void refresh(), 1500); };
+    const es = new EventSource('/api/sync/events');
+    es.addEventListener('ready', () => setLive(true));
+    es.addEventListener('changes', later);
+    es.onerror = () => setLive(false);
+    const poll = setInterval(() => { if (es.readyState !== EventSource.OPEN) void refresh(); }, 30_000);
+    return () => { clearTimeout(timer); clearInterval(poll); es.close(); };
+  }, [user, refresh]);
 
   const go = useCallback((view: ViewKey, sub?: string) => {
     const n = { view, sub: sub ?? railItems.find(r => r.view === view)?.sub ?? '' };
@@ -229,6 +247,9 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
             <Search size={16} aria-hidden="true" /><span>Найти объект, заявку, действие…</span><kbd>Ctrl K</kbd>
           </button>
           <div className="ctx-tools">
+            <span className="ctx-sync hide-phone" role="status" data-live={live ? 'on' : 'off'} title={live ? 'Изменения других пользователей появляются автоматически' : 'Нет соединения для автообновления: данные обновляются раз в 30 секунд'}>
+              {live ? 'Онлайн' : 'Автообновление недоступно'}{syncedAt && <> · обновлено {syncedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</>}
+            </span>
             <button type="button" className="icon-btn hide-phone" aria-pressed={density === 'comfortable'} aria-label={density === 'comfortable' ? 'Плотность: комфортно' : 'Плотность: компактно'} data-tip={density === 'comfortable' ? 'Комфортно (44 px)' : 'Компактно (34 px)'} onClick={() => setDensity(density === 'comfortable' ? 'compact' : 'comfortable')}>{density === 'comfortable' ? <Rows3 size={18} /> : <Rows4 size={18} />}</button>
             <button type="button" className="icon-btn" aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} data-tip={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
             {user ? (

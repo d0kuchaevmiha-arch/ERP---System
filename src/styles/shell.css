@@ -26,6 +26,9 @@
 .ctx-search span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 5px; border: 1px solid var(--line-strong); color: var(--muted); }
 .ctx-tools { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.ctx-sync { font-size: 11px; color: var(--muted); white-space: nowrap; margin-right: 6px; }
+.ctx-sync::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: var(--muted); vertical-align: 1px; }
+.ctx-sync[data-live="on"]::before { background: var(--st-ok); }
 .ctx-user { display: flex; align-items: center; gap: 6px; padding-left: 8px; border-left: 1px solid var(--line-strong); margin-left: 6px; }
 .ctx-user-text { display: grid; text-align: right; line-height: 1.15; }
 .ctx-user-text small { color: var(--muted); font-size: 11px; }

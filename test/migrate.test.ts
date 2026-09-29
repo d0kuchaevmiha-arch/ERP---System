@@ -48,6 +48,19 @@ describe('версионные миграции', () => {
     expect(await journal(t)).toEqual(j);
   });
 
+  it('0002: факты до 0.3.0 получают происхождение из created_at, строки не теряются', async () => {
+    t = await createEmptyDb();
+    await createLikePush(t);
+    const { rows: [org] } = await t.pool.query(`insert into organizations(name) values ('Орг') returning id`);
+    const { rows: [p] } = await t.pool.query(`insert into projects(organization_id, code, name) values ($1, 'P', 'Объект') returning id`, [org.id]);
+    await t.pool.query(`insert into expenses(project_id, category, description, amount, incurred_at, created_at) values ($1, 'Работы', 'Старый расход', '12.34', '2026-01-10', '2026-01-10T08:00:00Z')`, [p.id]);
+    await runMigrations(t.pool, silent);
+    const { rows } = await t.pool.query(`select amount, origin, device_created_at, server_received_at = created_at as same from expenses`);
+    expect(rows).toEqual([{ amount: '12.34', origin: 'online', device_created_at: null, same: true }]);
+    const { rows: [pr] } = await t.pool.query(`select version, updated_at = created_at as same from projects`);
+    expect(pr).toEqual({ version: 1, same: true });
+  });
+
   it('БД с расхождением схемы: ошибка, журнал не создаётся, данные не трогаются', async () => {
     t = await createEmptyDb();
     await createLikePush(t);

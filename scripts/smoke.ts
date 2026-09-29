@@ -16,6 +16,43 @@ async function request(cookie: string, method: string, path: string, body?: unkn
   return { json, cookie: r.headers.get('set-cookie')?.split(';')[0] };
 }
 
+// Минимальный SSE-клиент на fetch: next(event) ждёт ближайшее событие с этим именем.
+async function openEvents(cookie: string) {
+  const ctrl = new AbortController();
+  const r = await fetch(base+'/api/sync/events',{headers:{cookie,accept:'text/event-stream'},signal:ctrl.signal});
+  assert.equal(r.status,200,'SSE');
+  const reader = r.body!.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = '';
+  return {
+    async next(name: string, timeoutMs: number): Promise<{maxSeq:number}> {
+      const until = Date.now()+timeoutMs;
+      for (;;) {
+        const i = buf.indexOf('\n\n');
+        if (i >= 0) {
+          const block = buf.slice(0,i); buf = buf.slice(i+2);
+          const ev = block.match(/^event: (.+)$/m)?.[1]; const data = block.match(/^data: (.+)$/m)?.[1];
+          if (ev === name && data) return JSON.parse(data);
+          continue;
+        }
+        const left = until-Date.now(); if (left <= 0) throw new Error(`SSE: нет события ${name} за ${timeoutMs} мс`);
+        const chunk = await Promise.race([reader.read(), new Promise<never>((_,rej)=>setTimeout(()=>rej(new Error(`SSE: нет события ${name} за ${timeoutMs} мс`)),left))]);
+        if (chunk.done) throw new Error('SSE: поток закрыт');
+        buf += chunk.value;
+      }
+    },
+    // Дочитать поток до закрытия сервером (события пропускаются); false — не закрылся за timeoutMs.
+    async untilClosed(timeoutMs: number) {
+      const timeout = new Promise<'timeout'>(res => setTimeout(() => res('timeout'), timeoutMs));
+      for (;;) {
+        const chunk = await Promise.race([reader.read(), timeout]);
+        if (chunk === 'timeout') return false;
+        if (chunk.done) return true;
+      }
+    },
+    close() { ctrl.abort(); },
+  };
+}
+
 async function main() {
 // Без входа данные не отдаются (§5.2.2).
 for (const path of ['/api/v1/overview','/api/v1/projects','/api/admin/users']) {
@@ -60,9 +97,28 @@ assert.equal(fview.projects.some((p:{id:string})=>p.id===project.id),false,'пр
 await request(fcookie,'POST','/api/v1/progress',{taskId:task.id,progress:80},403);
 await request(cookie,'PUT',`/api/admin/users/${created.user.id}/access/${project.id}`,{permission:'edit'});
 await request(fcookie,'POST','/api/v1/progress',{taskId:task.id,progress:80});
+
+// Реальное время (P2): прораб подписан на SSE, директор вносит расход → сигнал ≤ 5 с.
+const stream=await openEvents(fcookie);
+await stream.next('ready',5000);
+const t0=Date.now();
+await call('/api/v1/expenses',{projectId:project.id,category:'Работы',description:'Сигнал реального времени',amount:'1.00'});
+const signal=await stream.next('changes',5000);
+const latency=Date.now()-t0;
+assert.ok(signal.maxSeq>0); assert.ok(latency<=5000,`сигнал через ${latency} мс`);
+
+// Идемпотентность (P2): тот же Idempotency-Key → одна запись и тот же ответ.
+const key=crypto.randomUUID();
+const idem=async()=>{ const r=await fetch(base+'/api/v1/expenses',{method:'POST',headers:{'Content-Type':'application/json',cookie,'Idempotency-Key':key},body:JSON.stringify({projectId:project.id,category:'Работы',description:`Идемпотентный расход ${tag}`,amount:'2.00'})}); assert.equal(r.status,201); return (await r.json()).data; };
+const [first,second]=[await idem(),await idem()]; assert.equal(first.id,second.id);
+const after=await call('/api/v1/overview',undefined,200);
+assert.equal(after.expenses.filter((e:{description:string})=>e.description===`Идемпотентный расход ${tag}`).length,1);
+
 await request(cookie,'PATCH',`/api/admin/users/${created.user.id}`,{isActive:false});
 await request(fcookie,'GET','/api/v1/overview',undefined,401); // блокировка рвёт сессию
+assert.equal(await stream.untilClosed(5000),true,'SSE заблокированного пользователя закрывается');
+stream.close();
 
-console.log('PASS: anonymous 401 → project → budget → task → purchase → approval (+409 repeat) → receipt → stock issue → progress → expense → plan/fact → audit → insufficient stock → user create → temp password → change → no access 403 → grant → block');
+console.log(`PASS: anonymous 401 → project → budget → task → purchase → approval (+409 repeat) → receipt → stock issue → progress → expense → plan/fact → audit → insufficient stock → user create → temp password → change → no access 403 → grant → SSE signal in ${latency} ms → idempotent repeat → block`);
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

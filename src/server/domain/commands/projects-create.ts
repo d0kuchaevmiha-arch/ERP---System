@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { projects } from '@/db/schema';
+import { projectAccess, projects } from '@/db/schema';
 import { defineCommand } from '../command';
 import { audit, changed } from '../context';
-import { WRITE_ROLES } from '../authz';
+import { WRITE_ROLES, isOrgWide } from '../authz';
 import { amount } from '../schemas';
 
 export default defineCommand({
@@ -13,6 +13,12 @@ export default defineCommand({
     const [row] = await tx.insert(projects).values({ organizationId: ctx.actor.organizationId, code: input.code, name: input.name, address: input.address, description: input.description, contractValue: String(input.contractValue || 0), forecast: String(input.forecast || 0), endDate: input.endDate || null, status: 'active' }).returning();
     await audit(tx, ctx, 'create', 'project', row.id, null, row);
     changed(ctx, 'projects', row.id, row.id);
+    // Автор, которому не видны все объекты организации, получает право ввода в созданный им объект (решение P2, вариант A).
+    if (!isOrgWide(ctx.actor)) {
+      const [access] = await tx.insert(projectAccess).values({ userId: ctx.actor.id, projectId: row.id, permission: 'edit' }).returning();
+      await audit(tx, ctx, 'grant', 'project_access', access.id, null, access);
+      changed(ctx, 'project_access', access.id, null);
+    }
     return row;
   },
 });

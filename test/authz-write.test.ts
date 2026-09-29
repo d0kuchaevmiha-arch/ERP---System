@@ -68,6 +68,17 @@ describe('доступ к объекту проверяется всегда (§
   });
 });
 
+describe('создание объекта (решение P2, вариант A)', () => {
+  it('автор-не директор получает edit-доступ и сразу работает с объектом; директору доступ не записывается', async () => {
+    const pm = await createUser(t.db, W.a.id, 'project_manager');
+    const created = await run(pm, 'projects.create', { name: 'Объект РП', code: `PM-${pm.id.slice(0, 6)}` }) as { id: string };
+    await expect(run(pm, 'budgets.create', { projectId: created.id, category: 'Работы', amount: '1.00' })).resolves.toBeTruthy();
+    const byDirector = await run(W.director, 'projects.create', { name: 'Объект директора', code: `D-${pm.id.slice(0, 6)}` }) as { id: string };
+    const { rows } = await t.pool.query('select user_id, permission from project_access where project_id = any($1)', [[created.id, byDirector.id]]);
+    expect(rows).toEqual([{ user_id: pm.id, permission: 'edit' }]);
+  });
+});
+
 describe('ссылки на сущности другой организации — «не найдено» (404)', () => {
   it.each([
     ['progress.set', () => ({ taskId: W.tb.id, progress: 5 })],

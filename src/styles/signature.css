@@ -1,0 +1,190 @@
+/* Сигнатурные элементы: штамп объекта и «тройная шкала» план / факт / прогноз.
+   Плюс всё, что построено на их языке: мерная линейка склада, график работ, WBS-лента. */
+
+/* ---------- Штамп ---------- */
+.stamp { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1px; border: 2px solid var(--ink); background: var(--ink); margin-bottom: 4px; }
+.stamp-cell { background: var(--sheet); padding: 8px 12px 10px; min-width: 0; display: grid; align-content: start; gap: 3px; }
+.stamp-cell small { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.stamp-cell b { font-weight: 500; }
+.stamp-code { grid-column: span 2; }
+.stamp-code b { font-size: 20px; font-weight: 600; }
+.stamp-name { grid-column: span 6; }
+.stamp-name h1 { font-size: 22px; line-height: 1.15; }
+.stamp-name span { color: var(--muted); font-size: 13px; }
+.stamp-cell:nth-child(3) { grid-column: span 2; }
+.stamp-cell:nth-child(4) { grid-column: span 2; }
+.stamp-cell:nth-child(5), .stamp-cell:nth-child(6), .stamp-cell:nth-child(7) { grid-column: span 4; }
+.stamp-progress { font-size: 20px; }
+.stamp-dev { grid-column: 1 / -1; }
+.stamp-dev ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 20px; }
+.stamp-dev li { display: flex; gap: 8px; align-items: flex-start; color: var(--tone, var(--ink)); }
+.stamp-dev li .mark { margin-top: 3px; }
+.stamp-dev li span { color: var(--ink); }
+.stamp-dev li em { font-style: normal; color: var(--muted); font-size: 12px; margin-right: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ---------- Тройная шкала ---------- */
+.ts { display: grid; gap: 6px; min-width: 0; }
+.ts-track { position: relative; height: 16px; }
+.ts-sm .ts-track { height: 12px; }
+.ts-plan { position: absolute; left: 0; top: 0; bottom: 0; border: 1px solid var(--plan); background: repeating-linear-gradient(135deg, var(--plan) 0 1px, transparent 1px 5px); }
+.ts-fact, .ts-over { position: absolute; top: 3px; bottom: 3px; }
+.ts-fact { left: 1px; background: var(--ink); }
+.ts-over { background: var(--mark); }
+.ts-forecast { position: absolute; top: 50%; height: 0; border-top: 2px dashed var(--ink); margin-top: -1px; }
+.ts-forecast::after { content: ''; position: absolute; right: -1px; top: -6px; border-left: 8px solid var(--ink); border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.ts-limit { position: absolute; top: -5px; bottom: -5px; width: 3px; margin-left: -1px; background: var(--mark-strong); }
+.ts-values { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 12px; color: var(--muted); }
+.ts-values b { color: var(--ink); font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.ts-values b.is-over { color: var(--st-err); }
+.ts-values span, .ts-legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.ts-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); margin: 8px 14px 4px; }
+.sheet > .ts-legend { margin-bottom: 0; }
+.ts-legend .lg-behind { color: var(--st-err); }
+i[class^='k-'] { display: inline-block; width: 16px; height: 9px; flex: none; }
+.k-plan { border: 1px solid var(--plan); background: repeating-linear-gradient(135deg, var(--plan) 0 1px, transparent 1px 4px); }
+.k-fact { background: var(--ink); }
+.k-over { background: var(--mark); }
+.k-fc { height: 0 !important; border-top: 2px dashed var(--ink); position: relative; top: -1px; }
+.k-limit { width: 3px !important; height: 12px !important; background: var(--mark-strong); }
+.k-today { width: 0 !important; height: 12px !important; border-left: 2px solid var(--mark-strong); }
+
+/* ---------- Мерная линейка склада ---------- */
+.ruler { min-width: 0; }
+.ruler-track { position: relative; height: 16px; border-bottom: 1px solid var(--ink); }
+.ruler-zone { position: absolute; left: 0; top: 0; bottom: 0; border: 1px solid var(--rebar); background: repeating-linear-gradient(135deg, var(--rebar) 0 1px, transparent 1px 5px); }
+.ruler-fill { position: absolute; left: 0; top: 4px; bottom: 4px; background: var(--ink); }
+.ruler[data-low] .ruler-fill { background: var(--mark); }
+.ruler-min { position: absolute; top: -5px; bottom: -3px; width: 3px; margin-left: -1px; background: var(--mark-strong); }
+.ruler-now { position: absolute; top: -8px; width: 0; margin-left: -5px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid var(--ink); }
+.ruler-scale { position: relative; height: 16px; font: 11px var(--font-mono); color: var(--muted); }
+.ruler-scale > span { position: absolute; top: 2px; }
+.ruler-scale > span:first-child { left: 0; }
+.ruler-end { right: 0; }
+.ruler-min-label { margin-left: 6px; color: var(--mark-strong); font-weight: 500; }
+:root[data-theme='dark'] .ruler-min-label { color: var(--mark); }
+.ruler-values { display: flex; gap: 12px; align-items: baseline; font-size: 13px; }
+.ruler-alert { color: var(--st-err); font-weight: 600; font-size: 12px; }
+.rulers { list-style: none; margin: 0; padding: 0; }
+.rulers li { display: grid; grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 2fr) 150px; gap: 20px; align-items: start; padding: 14px 0 8px; border-bottom: 1px solid var(--line-faint); }
+.rulers-name { display: grid; gap: 2px; }
+.rulers-name small { color: var(--muted); }
+.rulers-act { display: flex; justify-content: flex-end; }
+
+/* ---------- Очередь решений ---------- */
+.queue { list-style: none; margin: 0; padding: 0; }
+.queue-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line-faint); }
+.queue-mark { color: var(--tone, var(--ink)); padding-top: 2px; }
+.queue-text { display: grid; gap: 1px; min-width: 0; }
+.queue-text b { font-weight: 600; }
+.queue-why { font-size: 13px; }
+.queue-action { display: flex; align-items: center; min-height: 32px; }
+
+/* ---------- Реестр: ленты ---------- */
+.ribbons { display: grid; margin-top: 4px; }
+.ribbon { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(220px, 1fr) minmax(280px, 1.5fr); gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--line-strong); align-items: start; }
+.ribbon-id { display: grid; gap: 2px; min-width: 0; }
+.ribbon-code { font-size: 12px; color: var(--muted); }
+.ribbon-name { text-align: left; font-family: var(--font-disp); font-size: 16px; font-weight: 600; }
+.ribbon-name:hover { color: var(--plan); text-decoration: underline; }
+.ribbon-status { display: grid; gap: 6px; }
+.ribbon-scales { display: grid; gap: 10px; }
+.ribbon-scales small { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.dev-inline { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12px; }
+.dev-inline li { display: flex; gap: 6px; align-items: flex-start; color: var(--tone, var(--ink)); }
+.dev-inline li .mark { margin-top: 2px; }
+.dev-inline li span { color: var(--ink); }
+.dev-inline em, .dev-inline em { font-style: normal; color: var(--muted); }
+.dev-marks { display: inline-flex; gap: 6px; }
+.dev-marks > span { color: var(--tone); display: inline-flex; }
+.stack { display: grid; gap: 2px; }
+.stack-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; align-items: center; padding: 6px 0; }
+.stack-label { font: 12px var(--font-mono); color: var(--muted); }
+
+/* ---------- Объект: шкалы, замечания ---------- */
+.scale-rows { display: grid; }
+.scale-row { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 20px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line-faint); }
+.scale-name { display: grid; gap: 2px; font-weight: 600; }
+.scale-name small { font-weight: 400; color: var(--muted); }
+.inline-mark { color: var(--tone); margin-right: 6px; }
+.issues { list-style: none; margin: 0; padding: 0; }
+.issues button { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; width: 100%; text-align: left; padding: 10px 0; border-bottom: 1px solid var(--line-faint); }
+.issues button:hover b { color: var(--plan); }
+.issues small { display: block; color: var(--muted); }
+.issue-mark { color: var(--tone); padding-top: 2px; }
+
+/* ---------- WBS-лента ---------- */
+.wbs { list-style: none; margin: 10px 0 0; padding: 0; border-top: 2px solid var(--ink); }
+.wbs-row { display: grid; grid-template-columns: 26px 60px minmax(0, 1.7fr) minmax(120px, 1fr) 90px minmax(150px, auto); gap: 8px; align-items: center; min-height: calc(var(--row-h) + 12px); padding: 4px 4px 4px calc(var(--lvl, 0) * 22px + 4px); border-bottom: 1px solid var(--line-faint); cursor: pointer; }
+.wbs-row:hover { background: var(--hover); }
+.wbs-row[data-type='task'] { font-size: 14px; }
+.wbs-row[data-type='group'] { background: var(--sheet-2); cursor: pointer; }
+.wbs-row:focus-visible { outline-offset: -2px; }
+.wbs-row[data-type='purchase'], .wbs-row[data-type='expense'], .wbs-row[data-type='movement'], .wbs-row[data-type='contract'], .wbs-row[data-type='budget'] { font-size: 13px; }
+.wbs-chevron { display: grid; place-items: center; }
+.chev { display: grid; place-items: center; width: 24px; height: 24px; }
+.chev svg { transition: transform 160ms ease-out; }
+.chev[data-open='true'] svg { transform: rotate(90deg); }
+.wbs-code { font-size: 12px; color: var(--muted); display: flex; align-items: center; }
+.wbs-main { display: grid; gap: 1px; min-width: 0; }
+.wbs-main b { font-weight: 600; }
+.wbs-row[data-type='expense'] .wbs-main b, .wbs-row[data-type='movement'] .wbs-main b, .wbs-row[data-type='budget'] .wbs-main b { font-weight: 500; }
+.wbs-val { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.wbs-act { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.wbs-note { margin-top: 10px; }
+
+/* ---------- График работ ---------- */
+.gantt { overflow: auto; border: 1px solid var(--line-strong); max-height: 70dvh; position: relative; }
+.gantt-inner { position: relative; }
+.gantt-head { display: flex; position: sticky; top: 0; z-index: 4; background: var(--sheet); border-bottom: 2px solid var(--ink); }
+.gantt-label { position: sticky; left: 0; z-index: 3; flex: none; width: var(--label-w, 280px); background: var(--sheet); border-right: 1px solid var(--line-strong); display: grid; align-content: center; padding: 4px 12px; min-width: 0; }
+.gantt-label small { color: var(--muted); font-size: 12px; }
+.gantt-label .link { justify-content: flex-start; }
+.gantt-corner { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); height: 34px; }
+.gantt-axis { position: relative; height: 34px; flex: none; }
+.gantt-tick { position: absolute; top: 0; bottom: 0; padding: 8px 0 0 5px; border-left: 1px solid var(--line-strong); font: 11px var(--font-mono); color: var(--muted); white-space: nowrap; }
+.gantt-today-flag { position: absolute; top: 0; padding: 1px 5px; transform: translateX(-50%); background: var(--mark-strong); color: var(--on-mark); font-size: 11px; font-weight: 600; }
+.gantt-grid { position: absolute; top: 34px; bottom: 0; left: var(--label-w, 280px); pointer-events: none; z-index: 1; }
+.gantt-grid i { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--line-faint); }
+.gantt-grid i.today { border-left: 2px solid var(--mark-strong); }
+.gantt-group-head { position: sticky; left: 0; padding: 6px 12px; background: var(--sheet-2); border-bottom: 1px solid var(--line-strong); font-weight: 600; width: var(--label-w, 280px); box-sizing: border-box; z-index: 3; }
+.gantt-group-head .disp { color: var(--muted); font-size: 12px; margin-right: 6px; }
+.gantt-row { display: flex; border-bottom: 1px solid var(--line-faint); min-height: 44px; }
+.gantt-lane { position: relative; flex: none; }
+.gantt-bar { position: absolute; top: 14px; height: 16px; border: 1px solid var(--plan); background: repeating-linear-gradient(135deg, var(--plan) 0 1px, transparent 1px 5px); overflow: hidden; z-index: 2; }
+.gantt-bar[data-late] { border-color: var(--st-err); background: repeating-linear-gradient(135deg, var(--st-err) 0 1px, transparent 1px 5px); }
+.gantt-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); }
+.gantt-late { position: absolute; top: 14px; height: 16px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--st-err); white-space: nowrap; z-index: 2; }
+
+/* ---------- Закупки: этапы, массовые действия ---------- */
+.bulkbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; background: var(--sheet-2); border: 1px solid var(--line-strong); }
+.stages { display: grid; grid-template-columns: repeat(4, minmax(210px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+.stage-col { background: var(--sheet-2); border: 1px solid var(--line); padding: 10px; min-height: 140px; }
+.stage-col h3 { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.stage-col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.stage-card { display: grid; gap: 4px; padding: 10px; background: var(--sheet); border: 1px solid var(--line-strong); justify-items: start; }
+.stage-card[data-late] { border-left: 4px solid var(--st-err); }
+.report-list { list-style: none; margin: 0; padding: 0; }
+.report-list button { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line-faint); text-align: left; }
+.report-list button:hover b { color: var(--plan); }
+.report-list small { display: block; color: var(--muted); }
+
+/* ---------- Режим прораба ---------- */
+.foreman { max-width: 520px; margin: 0 auto; padding: 16px 16px 40px; display: grid; gap: 16px; }
+.foreman-head h1 { font-size: 26px; }
+.foreman-actions { display: grid; gap: 10px; }
+.foreman-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.work-card { display: grid; gap: 8px; width: 100%; text-align: left; padding: 14px; min-height: 64px; background: var(--sheet); border: 1px solid var(--line-strong); }
+.work-card:hover:not(:disabled) { background: var(--sheet-2); }
+.work-card[aria-pressed='true'] { outline: 2px solid var(--ink); }
+.work-title { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.work-title b { font-size: 16px; }
+.work-pct { font-size: 20px; font-weight: 600; }
+.foreman-full { justify-self: start; }
+.modal-full { max-height: calc(100dvh - 16px); }
+.wiz-pct { display: grid; gap: 14px; }
+.pct-big { font-size: 64px; line-height: 1; font-weight: 600; text-align: center; }
+.pct-controls { display: grid; grid-template-columns: 56px minmax(0, 1fr) 56px; gap: 10px; align-items: center; }
+.pct-controls .btn { padding: 0; }
+
+.cards { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.card-pick { display: flex; gap: 10px; align-items: center; }

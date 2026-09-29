@@ -1,0 +1,68 @@
+/* ==========================================================================
+   Токены интерфейса «лист проектной документации».
+   Шесть именованных цветов: Бетон, Калька, Тушь, Геодезическая синяя, Разметка, Арматура.
+   Всё остальное — производные. Проверка контраста: текст ≥ 4.5:1 на Бетоне и Кальке (см. CHANGELOG).
+   ========================================================================== */
+:root {
+  color-scheme: light;
+  --paper: #D8D9D2;       /* Бетон — фон рабочей области */
+  --sheet: #F1F2EF;       /* Калька — поверхность листов */
+  --sheet-2: #E6E8E2;     /* вторичная поверхность (колонки, выбранные строки) */
+  --ink: #1B1F23;         /* Тушь — текст и линии */
+  --plan: #2F4B7C;        /* Геодезическая синяя — «план», ссылки */
+  --mark: #E5461C;        /* Разметка — сигнальный акцент (графика) */
+  --rebar: #5F6F63;       /* Арматура — вторичные линии и «принято» */
+
+  /* Производные для текста: Разметка и Арматура ниже 4.5:1 как цвет мелкого текста, поэтому свои тёмные варианты */
+  --muted: #4B584F;
+  --mark-strong: #B93511;
+  --on-mark: #FFFFFF;
+  --focus: #2F4B7C;
+
+  /* Семантические статусы: всегда дублируются фигурой и подписью */
+  --st-ok: #2A6438;
+  --st-warn: #7F5300;
+  --st-err: #A82F0E;
+  --st-info: var(--plan);
+
+  --line: color-mix(in srgb, var(--ink) 24%, transparent);
+  --line-strong: color-mix(in srgb, var(--ink) 58%, transparent);
+  --line-faint: color-mix(in srgb, var(--ink) 11%, transparent);
+  --hover: color-mix(in srgb, var(--ink) 7%, transparent);
+  --scrim: rgb(27 31 35 / 0.38);
+
+  --radius: 2px;
+  --row-h: 34px;
+  --btn-h: 30px;
+  --rail-w: 60px;
+  --ctx-h: 52px;
+
+  --font-disp: var(--f-disp-lat), var(--f-disp-cyr), 'Arial Narrow', system-ui, sans-serif;
+  --font-sans: var(--f-sans-lat), var(--f-sans-latx), var(--f-sans-cyr), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--f-mono-lat), var(--f-mono-latx), var(--f-mono-cyr), ui-monospace, Consolas, monospace;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #14171A;
+  --sheet: #1D2226;
+  --sheet-2: #262C31;
+  --ink: #E8EAE4;
+  --plan: #8CA8DE;
+  --mark: #FF6B3D;
+  --rebar: #9FB2A5;
+  --muted: #A4B0A8;
+  --mark-strong: #FF6B3D;
+  --on-mark: #14171A;
+  --focus: #8CA8DE;
+  --st-ok: #7CC68C;
+  --st-warn: #E0B448;
+  --st-err: #FF8F6B;
+  --scrim: rgb(0 0 0 / 0.55);
+}
+
+:root[data-density='comfortable'] { --row-h: 44px; --btn-h: 40px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

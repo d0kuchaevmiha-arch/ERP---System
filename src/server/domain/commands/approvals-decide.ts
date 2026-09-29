@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { approvals, purchases } from '@/db/schema';
 import { defineCommand } from '../command';
 import { audit } from '../context';
-import { DECIDE_ROLES } from '../authz';
+import { DECIDE_ROLES, orgPurchase, requireProjectWrite } from '../authz';
 import { businessRule } from '../errors';
 import { uuid } from '../schemas';
 
@@ -11,8 +11,8 @@ export default defineCommand({
   name: 'approvals.decide', offline: 'online_only', roles: DECIDE_ROLES,
   schema: z.object({ purchaseId: uuid, decision: z.enum(['approve', 'reject', 'return']), comment: z.string().optional() }),
   async authorize(tx, ctx, input) {
-    const [p] = await tx.select().from(purchases).where(and(eq(purchases.id, input.purchaseId), eq(purchases.organizationId, ctx.actor.organizationId)));
-    if (!p) throw businessRule('Заявка не найдена');
+    const p = await orgPurchase(tx, ctx.actor, input.purchaseId);
+    await requireProjectWrite(tx, ctx.actor, p.projectId);
     return p;
   },
   async execute(tx, ctx, input, p) {

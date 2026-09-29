@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
-import { purchases, stockMovements, warehouses } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import { purchases, stockMovements } from '@/db/schema';
 import { defineCommand } from '../command';
 import { audit } from '../context';
-import { DECIDE_ROLES } from '../authz';
+import { DECIDE_ROLES, orgPurchase, orgWarehouse, requireProjectWrite, requireSameProject } from '../authz';
 import { businessRule } from '../errors';
 import { quantity, uuid } from '../schemas';
 
@@ -11,12 +11,13 @@ export default defineCommand({
   name: 'purchases.receive', offline: 'conflictable', roles: DECIDE_ROLES,
   schema: z.object({ purchaseId: uuid, quantity, warehouseId: uuid.optional() }),
   async authorize(tx, ctx, input) {
-    const [p] = await tx.select().from(purchases).where(and(eq(purchases.id, input.purchaseId), eq(purchases.organizationId, ctx.actor.organizationId)));
-    if (!p || !['ordered', 'partial'].includes(p.status)) throw businessRule('Для приемки нужен согласованный заказ');
+    const p = await orgPurchase(tx, ctx.actor, input.purchaseId);
+    await requireProjectWrite(tx, ctx.actor, p.projectId);
+    if (!['ordered', 'partial'].includes(p.status)) throw businessRule('Для приемки нужен согласованный заказ');
     const warehouseId = input.warehouseId || p.warehouseId;
     if (!warehouseId) throw businessRule('Выберите склад');
-    const [w] = await tx.select().from(warehouses).where(and(eq(warehouses.id, warehouseId), eq(warehouses.organizationId, ctx.actor.organizationId)));
-    if (!w) throw businessRule('Склад не найден');
+    const w = await orgWarehouse(tx, ctx.actor, warehouseId);
+    requireSameProject(w.projectId, p.projectId, 'Склад');
     return { p, w };
   },
   async execute(tx, ctx, input, { p, w }) {

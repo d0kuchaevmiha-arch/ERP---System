@@ -70,6 +70,8 @@ export function CreateDialog({ kind, initial, onClose, onLogin }: { kind: Create
         const res = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error?.message || 'Не удалось войти. Проверьте почту и пароль.');
+        // Мог войти другой пользователь с другими объектами — перезагружаем страницу целиком.
+        if (json.user?.mustChangePassword) { window.location.assign('/account/password'); return; }
         onLogin(json.user);
         await refresh();
         notify(done.login);

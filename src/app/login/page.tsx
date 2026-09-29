@@ -17,7 +17,7 @@ export default function LoginPage() {
       const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error?.message || 'Не удалось войти. Проверьте почту и пароль.');
-      router.push('/'); router.refresh();
+      router.push(j.user?.mustChangePassword ? '/account/password' : '/'); router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось войти. Повторите попытку.');
     } finally { setLoading(false); }

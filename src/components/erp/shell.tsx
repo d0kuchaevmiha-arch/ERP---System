@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, Building2, ListChecks, Moon, PanelLeftClose, PanelLeftOpen, Rows3, Rows4, Search, Sun, Truck, Wallet, LogOut, LogIn } from 'lucide-react';
+import { BookOpen, Building2, KeyRound, ListChecks, Moon, PanelLeftClose, PanelLeftOpen, Rows3, Rows4, Search, Sun, Truck, Wallet, LogOut, LogIn } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Overview } from '@/lib/overview';
 import { BRAND } from '@/lib/brand';
@@ -21,6 +21,7 @@ import { WarehouseView } from './views/warehouse';
 import { MoneyView } from './views/money';
 import { RefsView } from './views/refs';
 import { ForemanView } from './views/foreman';
+import { UsersView } from './views/users';
 
 type Toast = { id: number; text: string; tone: 'ok' | 'err' };
 
@@ -35,8 +36,10 @@ const subs: Partial<Record<ViewKey, { value: string; label: string }[]>> = {
   projects: [{ value: 'registry', label: 'Реестр' }, { value: 'schedule', label: 'График работ' }],
   money: [{ value: 'plan', label: 'Бюджет' }, { value: 'expenses', label: 'Расходы' }],
   supply: [{ value: 'purchases', label: 'Закупки' }, { value: 'warehouse', label: 'Склад' }],
-  refs: [{ value: 'materials', label: 'Материалы' }, { value: 'counterparties', label: 'Контрагенты' }, { value: 'contracts', label: 'Договоры' }, { value: 'reports', label: 'Отчёты' }],
+  refs: [{ value: 'materials', label: 'Материалы' }, { value: 'counterparties', label: 'Контрагенты' }, { value: 'contracts', label: 'Договоры' }, { value: 'reports', label: 'Отчёты' }, { value: 'users', label: 'Пользователи' }],
 };
+// Экран «Пользователи» виден только тем, кому сервер разрешит управлять пользователями.
+const USER_ADMINS = ['director', 'super_admin'];
 // Ссылки старого интерфейса (?view=finance и т. п.) продолжают работать.
 const legacy: Record<string, Nav> = {
   dashboard: { view: 'today', sub: '' }, projects: { view: 'projects', sub: 'registry' }, planning: { view: 'projects', sub: 'schedule' }, tasks: { view: 'projects', sub: 'schedule' },
@@ -165,7 +168,8 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
     }
   }, [user, requireLogin, refresh]);
 
-  const logout = useCallback(async () => { await fetch('/api/auth', { method: 'DELETE' }); setUser(null); notify('Вы вышли из системы'); }, [notify]);
+  // После выхода данные организации не остаются на экране: уходим на страницу входа.
+  const logout = useCallback(async () => { await fetch('/api/auth', { method: 'DELETE' }); setUser(null); window.location.assign('/login'); }, []);
 
   const openDrawer = useCallback((ref: NonNullable<DrawerRef>) => setDrawer(ref), []);
   const closeDrawer = useCallback(() => setDrawer(null), []);
@@ -176,7 +180,8 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
 
   const project = data.projects.find(p => p.id === scopeId);
   const pending = data.metrics.openRequests + data.metrics.delayedPurchases;
-  const subOptions = subs[nav.view];
+  const isUserAdmin = Boolean(user && USER_ADMINS.includes(user.role));
+  const subOptions = subs[nav.view]?.filter(o => o.value !== 'users' || isUserAdmin);
   const showSub = subOptions && !(nav.view === 'projects' && project && nav.sub !== 'schedule');
 
   let content: React.ReactNode;
@@ -184,6 +189,7 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
   else if (nav.view === 'projects') content = nav.sub === 'schedule' ? <PlanView /> : project ? <ProjectView key={project.id} project={project} /> : <ProjectsPage />;
   else if (nav.view === 'money') content = <MoneyView sub={nav.sub || 'plan'} />;
   else if (nav.view === 'supply') content = nav.sub === 'warehouse' ? <WarehouseView /> : <ProcurementView />;
+  else if (nav.sub === 'users' && isUserAdmin) content = <UsersView />;
   else content = <RefsView sub={nav.sub || 'materials'} />;
 
   return (
@@ -224,7 +230,7 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
             <button type="button" className="icon-btn hide-phone" aria-pressed={density === 'comfortable'} aria-label={density === 'comfortable' ? 'Плотность: комфортно' : 'Плотность: компактно'} data-tip={density === 'comfortable' ? 'Комфортно (44 px)' : 'Компактно (34 px)'} onClick={() => setDensity(density === 'comfortable' ? 'compact' : 'comfortable')}>{density === 'comfortable' ? <Rows3 size={18} /> : <Rows4 size={18} />}</button>
             <button type="button" className="icon-btn" aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} data-tip={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
             {user ? (
-              <div className="ctx-user"><span className="ctx-user-text"><b>{user.name}</b><small>{roleLabel[user.role] || user.role}</small></span><button type="button" className="icon-btn" aria-label="Выйти из системы" data-tip="Выйти" onClick={logout}><LogOut size={18} /></button></div>
+              <div className="ctx-user"><span className="ctx-user-text"><b>{user.name}</b><small>{roleLabel[user.role] || user.role}</small></span><a className="icon-btn" href="/account/password" aria-label="Сменить пароль" data-tip="Сменить пароль"><KeyRound size={18} /></a><button type="button" className="icon-btn" aria-label="Выйти из системы" data-tip="Выйти" onClick={logout}><LogOut size={18} /></button></div>
             ) : (
               <button type="button" className="btn" onClick={() => setCreating({ kind: 'login', values: {} })}><LogIn size={16} aria-hidden="true" />Войти</button>
             )}

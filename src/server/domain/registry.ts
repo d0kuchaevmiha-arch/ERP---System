@@ -1,8 +1,7 @@
 import { ZodError } from 'zod';
 import type { Command } from './command';
 import type { CommandContext } from './context';
-import { WRITE_ROLES } from './authz';
-import { DomainError, forbidden, invalid, notFound } from './errors';
+import { DomainError, conflict, forbidden, invalid, notFound } from './errors';
 import organizationsCreate from './commands/organizations-create';
 import projectsCreate from './commands/projects-create';
 import tasksCreate from './commands/tasks-create';
@@ -17,9 +16,19 @@ import purchasesCreate from './commands/purchases-create';
 import approvalsDecide from './commands/approvals-decide';
 import purchasesReceive from './commands/purchases-receive';
 import movementsCreate from './commands/movements-create';
+import usersCreate from './commands/users-create';
+import usersUpdate from './commands/users-update';
+import usersResetPassword from './commands/users-reset-password';
+import accessSet from './commands/access-set';
+import accessRemove from './commands/access-remove';
+import authChangePassword from './commands/auth-change-password';
 
 type AnyCommand = Command<any, any, unknown>;
-const list: AnyCommand[] = [organizationsCreate, projectsCreate, tasksCreate, progressSet, budgetsCreate, expensesCreate, materialsCreate, warehousesCreate, counterpartiesCreate, contractsCreate, purchasesCreate, approvalsDecide, purchasesReceive, movementsCreate];
+const list: AnyCommand[] = [
+  organizationsCreate, projectsCreate, tasksCreate, progressSet, budgetsCreate, expensesCreate, materialsCreate, warehousesCreate,
+  counterpartiesCreate, contractsCreate, purchasesCreate, approvalsDecide, purchasesReceive, movementsCreate,
+  usersCreate, usersUpdate, usersResetPassword, accessSet, accessRemove, authChangePassword,
+];
 export const commands: Record<string, AnyCommand> = Object.fromEntries(list.map(c => [c.name, c]));
 
 // Ресурсы HTTP API v1 → команды (контракт POST /api/v1/<resource> сохранён).
@@ -34,15 +43,26 @@ export const httpCommands: Record<string, string> = {
 export async function runCommand(ctx: CommandContext, name: string, raw: unknown) {
   const cmd = commands[name];
   if (!cmd) throw notFound('Операция не найдена');
-  if (!(WRITE_ROLES as readonly string[]).includes(ctx.actor.role)) throw forbidden('Недостаточно прав для изменения данных');
-  if (!cmd.roles.includes(ctx.actor.role)) throw forbidden('Недостаточно прав для согласования или приемки');
+  // Пока временный пароль не сменён, доступна только смена пароля.
+  if (ctx.actor.mustChangePassword && cmd !== authChangePassword) throw forbidden('Смените пароль, чтобы продолжить');
+  if (!cmd.roles.includes(ctx.actor.role)) throw forbidden(cmd.deniedMessage ?? 'Недостаточно прав для изменения данных');
   let input: unknown;
   try { input = cmd.schema.parse(raw); }
   catch (e) { if (e instanceof ZodError) throw invalid('Проверьте поля формы: ' + e.issues.map(i => i.path.join('.')).join(', ')); throw e; }
-  return ctx.db.transaction(async tx => {
-    const scope = await cmd.authorize(tx, ctx, input);
-    return cmd.execute(tx, ctx, input, scope);
-  });
+  try {
+    return await ctx.db.transaction(async tx => {
+      const scope = await cmd.authorize(tx, ctx, input);
+      return cmd.execute(tx, ctx, input, scope);
+    });
+  } catch (e) {
+    // Нарушение уникальности (гонка двух одинаковых созданий) — понятный 409 вместо текста ошибки БД.
+    if (pgCode(e) === '23505') throw conflict('Запись с такими данными уже существует');
+    throw e;
+  }
+}
+function pgCode(e: unknown): string | undefined {
+  const err = e as { code?: string; cause?: { code?: string } };
+  return err?.code ?? err?.cause?.code;
 }
 
 export { DomainError };

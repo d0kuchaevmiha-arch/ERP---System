@@ -8,7 +8,7 @@ import { businessRule } from '../errors';
 import { quantity, uuid } from '../schemas';
 
 export default defineCommand({
-  name: 'purchases.receive', offline: 'conflictable', roles: DECIDE_ROLES,
+  name: 'purchases.receive', offline: 'conflictable', roles: DECIDE_ROLES, deniedMessage: 'Недостаточно прав для согласования или приемки',
   schema: z.object({ purchaseId: uuid, quantity, warehouseId: uuid.optional() }),
   async authorize(tx, ctx, input) {
     // FOR UPDATE: параллельные приёмки одной заявки идут по очереди.

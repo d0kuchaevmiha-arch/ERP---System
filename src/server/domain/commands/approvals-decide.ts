@@ -10,7 +10,7 @@ import { uuid } from '../schemas';
 const decided: Record<string, string> = { approved: 'согласована', rejected: 'отклонена', reject: 'отклонена', return: 'возвращена' };
 
 export default defineCommand({
-  name: 'approvals.decide', offline: 'online_only', roles: DECIDE_ROLES,
+  name: 'approvals.decide', offline: 'online_only', roles: DECIDE_ROLES, deniedMessage: 'Недостаточно прав для согласования или приемки',
   schema: z.object({ purchaseId: uuid, decision: z.enum(['approve', 'reject', 'return']), comment: z.string().optional() }),
   async authorize(tx, ctx, input) {
     const p = await orgPurchase(tx, ctx.actor, input.purchaseId);

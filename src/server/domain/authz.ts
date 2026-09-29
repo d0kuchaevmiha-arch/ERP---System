@@ -6,6 +6,9 @@ import { forbidden, invalid, notFound } from './errors';
 
 export const WRITE_ROLES = ['super_admin', 'director', 'project_manager', 'construction_manager', 'foreman', 'procurement_manager', 'warehouse_manager', 'finance_manager', 'accountant'] as const;
 export const DECIDE_ROLES = ['director', 'super_admin', 'project_manager', 'procurement_manager'] as const;
+export const ALL_ROLES = [...WRITE_ROLES, 'read_only'] as const;
+// Управление пользователями и доступами (Допущение, §14): администратор и директор своей организации.
+export const USER_ADMIN_ROLES = ['super_admin', 'director'] as const;
 // Роли, которым доступны все объекты своей организации без project_access.
 export const ORG_WIDE_ROLES = ['director', 'super_admin'] as const;
 export const isOrgWide = (actor: Actor) => (ORG_WIDE_ROLES as readonly string[]).includes(actor.role);

@@ -1,6 +1,7 @@
 import { ZodError } from 'zod';
 import type { Command } from './command';
 import { resolveContext, type CommandRequest } from './context';
+import { flushChanges } from './changes';
 import { DomainError, conflict, forbidden, invalid, notFound } from './errors';
 import organizationsCreate from './commands/organizations-create';
 import projectsCreate from './commands/projects-create';
@@ -53,7 +54,9 @@ export async function runCommand(req: CommandRequest, name: string, raw: unknown
   try {
     return await ctx.db.transaction(async tx => {
       const scope = await cmd.authorize(tx, ctx, input);
-      return cmd.execute(tx, ctx, input, scope);
+      const result = await cmd.execute(tx, ctx, input, scope);
+      await flushChanges(tx, ctx.actor.organizationId, ctx.changes);
+      return result;
     });
   } catch (e) {
     // Нарушение уникальности (гонка двух одинаковых созданий) — понятный 409 вместо текста ошибки БД.

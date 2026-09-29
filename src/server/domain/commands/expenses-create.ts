@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { sql } from 'drizzle-orm';
 import { budgetLines, expenses, notifications } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit, factFields } from '../context';
+import { audit, changed, factFields } from '../context';
 import { WRITE_ROLES, orgContract, orgCounterparty, requireProjectWrite, requireSameProject, requireTaskOfProject } from '../authz';
 import { amount, uuid } from '../schemas';
 
@@ -18,11 +18,15 @@ export default defineCommand({
   async execute(tx, ctx, input) {
     const [row] = await tx.insert(expenses).values({ projectId: input.projectId, category: input.category, description: input.description, amount: String(input.amount), taskId: input.taskId || null, contractId: input.contractId || null, counterpartyId: input.counterpartyId || null, incurredAt: input.incurredAt || new Date().toISOString().slice(0, 10), ...factFields(ctx) }).returning();
     await audit(tx, ctx, 'create', 'expense', row.id, null, row);
+    changed(ctx, 'expenses', row.id, row.projectId);
     // Суммы и сравнение — в NUMERIC на стороне БД.
     const actual = sql<string>`(select coalesce(sum(${expenses.amount}),0) from ${expenses} where ${expenses.projectId} = ${input.projectId})`;
     const budget = sql<string>`(select coalesce(sum(${budgetLines.amount}),0) from ${budgetLines} where ${budgetLines.projectId} = ${input.projectId})`;
     const { rows: [totals] } = await tx.execute<{ actual: string; budget: string; over: boolean }>(sql`select ${actual} as actual, ${budget} as budget, ${actual} > ${budget} as over`);
-    if (totals.over) await tx.insert(notifications).values({ userId: ctx.actor.id, title: 'Превышен бюджет объекта', body: `Расходы: ${totals.actual} ₽; бюджет: ${totals.budget} ₽`, href: `/projects/${input.projectId}` });
+    if (totals.over) {
+      const [n] = await tx.insert(notifications).values({ userId: ctx.actor.id, title: 'Превышен бюджет объекта', body: `Расходы: ${totals.actual} ₽; бюджет: ${totals.budget} ₽`, href: `/projects/${input.projectId}` }).returning({ id: notifications.id });
+      changed(ctx, 'notifications', n.id, null);
+    }
     return { ...row, budgetWarning: totals.over };
   },
 });

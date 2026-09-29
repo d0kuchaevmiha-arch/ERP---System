@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { tasks } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, changed } from '../context';
 import { WRITE_ROLES, orgTask, requireProjectWrite } from '../authz';
 import { quantityOrZero, uuid } from '../schemas';
 
@@ -18,6 +18,7 @@ export default defineCommand({
   async execute(tx, ctx, input, old) {
     const [row] = await tx.update(tasks).set({ progress: input.progress, actualQuantity: String(input.actualQuantity ?? old.actualQuantity), status: input.progress === 100 ? 'done' : 'active', actualEnd: input.progress === 100 ? new Date().toISOString().slice(0, 10) : null }).where(eq(tasks.id, old.id)).returning();
     await audit(tx, ctx, 'update', 'task', row.id, old, row);
+    changed(ctx, 'tasks', row.id, row.projectId);
     return row;
   },
 });

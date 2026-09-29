@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { tasks } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, changed } from '../context';
 import { WRITE_ROLES, requireProjectWrite, requireTaskOfProject } from '../authz';
 import { amount, uuid } from '../schemas';
 
@@ -15,6 +15,7 @@ export default defineCommand({
   async execute(tx, ctx, input) {
     const [row] = await tx.insert(tasks).values({ projectId: input.projectId, name: input.name, kind: input.kind, parentId: input.parentId || null, startDate: input.startDate || null, endDate: input.endDate || null, plannedCost: String(input.plannedCost || 0), unit: input.unit || 'шт' }).returning();
     await audit(tx, ctx, 'create', 'task', row.id, null, row);
+    changed(ctx, 'tasks', row.id, row.projectId);
     return row;
   },
 });

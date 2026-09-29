@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { projectAccess } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, changed } from '../context';
 import { USER_ADMIN_ROLES } from '../authz';
 import { notFound } from '../errors';
 import { manageableUser } from '../users';
@@ -16,6 +16,7 @@ export default defineCommand({
     const [row] = await tx.delete(projectAccess).where(and(eq(projectAccess.userId, input.userId), eq(projectAccess.projectId, input.projectId))).returning();
     if (!row) throw notFound('Доступ не найден');
     await audit(tx, ctx, 'revoke', 'project_access', row.id, row, null);
+    changed(ctx, 'project_access', row.id, null, 'delete');
     return row;
   },
 });

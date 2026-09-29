@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { and, desc, eq } from 'drizzle-orm';
 import { approvals, purchases, users } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, changed } from '../context';
 import { DECIDE_ROLES, orgPurchase, requireProjectWrite } from '../authz';
 import { businessRule, conflict } from '../errors';
 import { uuid } from '../schemas';
@@ -32,6 +32,8 @@ export default defineCommand({
     const status = input.decision === 'approve' ? 'ordered' : input.decision === 'reject' ? 'rejected' : 'requested';
     const [row] = await tx.update(purchases).set({ status }).where(eq(purchases.id, p.id)).returning();
     await audit(tx, ctx, input.decision, 'purchase', row.id, p, row);
+    changed(ctx, 'approvals', a.id, p.projectId);
+    changed(ctx, 'purchases', row.id, p.projectId);
     return row;
   },
 });

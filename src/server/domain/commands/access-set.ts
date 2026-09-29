@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { projectAccess, projects } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, changed } from '../context';
 import { USER_ADMIN_ROLES } from '../authz';
 import { notFound } from '../errors';
 import { manageableUser } from '../users';
@@ -22,6 +22,7 @@ export default defineCommand({
     const [row] = await tx.insert(projectAccess).values(input)
       .onConflictDoUpdate({ target: [projectAccess.userId, projectAccess.projectId], set: { permission: input.permission } }).returning();
     await audit(tx, ctx, 'grant', 'project_access', row.id, before ?? null, row);
+    changed(ctx, 'project_access', row.id, null);
     return row;
   },
 });

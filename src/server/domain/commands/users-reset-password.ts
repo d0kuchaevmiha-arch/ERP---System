@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { users } from '@/db/schema';
 import { hashPassword } from '@/server/auth/password';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, changed } from '../context';
 import { USER_ADMIN_ROLES } from '../authz';
 import { forbidden } from '../errors';
 import { manageableUser, publicUser, temporaryPassword } from '../users';
@@ -22,6 +22,7 @@ export default defineCommand({
     const password = temporaryPassword();
     const [row] = await tx.update(users).set({ passwordHash: hashPassword(password), mustChangePassword: true, sessionVersion: sql`${users.sessionVersion} + 1` }).where(eq(users.id, target.id)).returning();
     await audit(tx, ctx, 'reset_password', 'user', row.id, null, { mustChangePassword: true });
+    changed(ctx, 'users', row.id, null);
     return { user: publicUser(row), temporaryPassword: password };
   },
 });

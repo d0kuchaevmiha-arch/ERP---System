@@ -9,6 +9,7 @@ export default defineCommand({
   name: 'organizations.create', offline: 'online_only', roles: WRITE_ROLES,
   schema: z.object({ name: z.string().min(2), inn: z.string().optional() }),
   async authorize(_tx, ctx) { if (ctx.actor.role !== 'super_admin') throw businessRule('Недостаточно прав'); },
+  // Новая организация — другой контур; в журнал изменений своей организации не пишется.
   async execute(tx, ctx, input) {
     const [row] = await tx.insert(organizations).values({ name: input.name, inn: input.inn }).returning();
     await audit(tx, ctx, 'create', 'organization', row.id, null, row);

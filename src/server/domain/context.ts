@@ -1,6 +1,7 @@
 import { auditLogs } from '@/db/schema';
 import type { SessionUser } from '@/server/auth/session';
 import type { Db, Tx } from '@/server/db/types';
+import type { Change } from './changes';
 
 export type Actor = SessionUser;
 
@@ -14,16 +15,23 @@ export type Provenance = {
   opId: string | null;
 };
 
-export type CommandContext = { db: Db; actor: Actor; ip: string | null; userAgent: string | null; prov: Provenance };
+// changes — что изменила команда; runCommand пишет их в change_log в конце транзакции (§4.2).
+export type CommandContext = { db: Db; actor: Actor; ip: string | null; userAgent: string | null; prov: Provenance; changes: Change[] };
 // То, что передаёт вызывающий: происхождение необязательно, недостающее заполняет сервер.
-export type CommandRequest = Omit<CommandContext, 'prov'> & { prov?: Partial<Omit<Provenance, 'serverReceivedAt'>> };
+export type CommandRequest = Omit<CommandContext, 'prov' | 'changes'> & { prov?: Partial<Omit<Provenance, 'serverReceivedAt'>> };
 
 export function resolveContext(req: CommandRequest, now = new Date()): CommandContext {
   const p = req.prov ?? {};
   return {
     ...req,
     prov: { origin: p.origin ?? 'online', deviceId: p.deviceId ?? null, deviceCreatedAt: p.deviceCreatedAt ?? now, serverReceivedAt: now, opId: p.opId ?? null },
+    changes: [],
   };
+}
+
+// Отметить изменённую строку: entity — имя таблицы, projectId — объект (null — изменение уровня организации).
+export function changed(ctx: CommandContext, entity: string, entityId: string, projectId: string | null, op: Change['op'] = 'upsert') {
+  ctx.changes.push({ entity, entityId, projectId, op });
 }
 
 // Поля происхождения для строки-факта (expenses, stock_movements, purchases, task_progress_log).

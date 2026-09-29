@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { and, eq, sql } from 'drizzle-orm';
 import { purchases, stockMovements } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit, factFields } from '../context';
+import { audit, changed, factFields } from '../context';
 import { DECIDE_ROLES, orgPurchase, orgWarehouse, requireProjectWrite, requireSameProject } from '../authz';
 import { businessRule } from '../errors';
 import { quantity, uuid } from '../schemas';
@@ -35,6 +35,8 @@ export default defineCommand({
     }
     const [movement] = await tx.insert(stockMovements).values({ materialId: p.materialId, warehouseId: w.id, projectId: p.projectId, purchaseId: p.id, type: 'receipt', quantity: q, note: `Приемка ${p.number}`, ...factFields(ctx) }).returning();
     await audit(tx, ctx, 'receive', 'purchase', p.id, p, { receivedQuantity: updated.receivedQuantity, status: updated.status, movementId: movement.id });
+    changed(ctx, 'purchases', p.id, p.projectId);
+    changed(ctx, 'stock_movements', movement.id, p.projectId);
     return movement;
   },
 });

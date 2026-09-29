@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { warehouses } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, changed } from '../context';
 import { WRITE_ROLES, requireProjectWrite } from '../authz';
 import { uuid } from '../schemas';
 
@@ -12,6 +12,7 @@ export default defineCommand({
   async execute(tx, ctx, input) {
     const [row] = await tx.insert(warehouses).values({ organizationId: ctx.actor.organizationId, name: input.name, projectId: input.projectId || null, location: input.location }).returning();
     await audit(tx, ctx, 'create', 'warehouse', row.id, null, row);
+    changed(ctx, 'warehouses', row.id, row.projectId);
     return row;
   },
 });

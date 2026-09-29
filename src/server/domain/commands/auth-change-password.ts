@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { users } from '@/db/schema';
 import { hashPassword, verifyPassword } from '@/server/auth/password';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, changed } from '../context';
 import { ALL_ROLES } from '../authz';
 import { invalid } from '../errors';
 import { newPassword, publicUser } from '../users';
@@ -22,6 +22,7 @@ export default defineCommand({
   async execute(tx, ctx, input, me) {
     const [row] = await tx.update(users).set({ passwordHash: hashPassword(input.newPassword), mustChangePassword: false, passwordChangedAt: new Date(), sessionVersion: sql`${users.sessionVersion} + 1` }).where(eq(users.id, me.id)).returning();
     await audit(tx, ctx, 'change_password', 'user', row.id, null, { passwordChangedAt: row.passwordChangedAt });
+    changed(ctx, 'users', row.id, null);
     // Без хеша пароля; sessionVersion нужен, чтобы выдать новую cookie.
     return { ...publicUser(row), sessionVersion: row.sessionVersion };
   },

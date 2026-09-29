@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { materials } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, changed } from '../context';
 import { WRITE_ROLES } from '../authz';
 import { price } from '../schemas';
 
@@ -12,6 +12,7 @@ export default defineCommand({
   async execute(tx, ctx, input) {
     const [row] = await tx.insert(materials).values({ organizationId: ctx.actor.organizationId, name: input.name, sku: input.sku, unit: input.unit, category: input.category, minStock: String(input.minStock || 0), price: String(input.price || 0) }).returning();
     await audit(tx, ctx, 'create', 'material', row.id, null, row);
+    changed(ctx, 'materials', row.id, null);
     return row;
   },
 });

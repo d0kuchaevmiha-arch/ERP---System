@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { and, eq, sql } from 'drizzle-orm';
 import { expenses, notifications, stockMovements } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit, factFields } from '../context';
+import { audit, changed, factFields } from '../context';
 import { WRITE_ROLES, orgMaterial, orgWarehouse, requireProjectWrite, requireTaskOfProject } from '../authz';
 import { businessRule, invalid } from '../errors';
 import { costOf } from '../money';
@@ -30,10 +30,15 @@ export default defineCommand({
     if (outgoing && !balance.enough) throw businessRule(`Невозможно списать ${input.quantity} ${m.unit} материала «${m.name}»: доступно только ${balance.total} ${m.unit}.`);
     const [row] = await tx.insert(stockMovements).values({ materialId: input.materialId, warehouseId: input.warehouseId, projectId, taskId: input.taskId || null, type: input.type, quantity: String(input.quantity), note: input.note, ...factFields(ctx) }).returning();
     await audit(tx, ctx, input.type, 'stock_movement', row.id, null, row);
+    changed(ctx, 'stock_movements', row.id, projectId);
     if (outgoing && projectId) {
-      await tx.insert(expenses).values({ projectId, taskId: input.taskId || null, category: 'Материалы', description: `Списание: ${m.name} · ${input.quantity} ${m.unit}`, amount: costOf(input.quantity, m.price), incurredAt: new Date().toISOString().slice(0, 10), ...factFields(ctx) });
+      const [cost] = await tx.insert(expenses).values({ projectId, taskId: input.taskId || null, category: 'Материалы', description: `Списание: ${m.name} · ${input.quantity} ${m.unit}`, amount: costOf(input.quantity, m.price), incurredAt: new Date().toISOString().slice(0, 10), ...factFields(ctx) }).returning({ id: expenses.id });
+      changed(ctx, 'expenses', cost.id, projectId);
     }
-    if (Number(balance.total) + (outgoing ? -input.quantity : input.quantity) < Number(m.minStock)) await tx.insert(notifications).values({ userId: ctx.actor.id, title: 'Низкий остаток материала', body: m.name, href: '/warehouse' });
+    if (Number(balance.total) + (outgoing ? -input.quantity : input.quantity) < Number(m.minStock)) {
+      const [n] = await tx.insert(notifications).values({ userId: ctx.actor.id, title: 'Низкий остаток материала', body: m.name, href: '/warehouse' }).returning({ id: notifications.id });
+      changed(ctx, 'notifications', n.id, null);
+    }
     return row;
   },
 });

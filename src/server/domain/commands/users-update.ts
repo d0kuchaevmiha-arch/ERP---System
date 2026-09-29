@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { eq, sql } from 'drizzle-orm';
 import { users } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, changed } from '../context';
 import { USER_ADMIN_ROLES } from '../authz';
 import { forbidden } from '../errors';
 import { assertCanAssignRole, manageableUser, publicUser, role } from '../users';
@@ -28,6 +28,7 @@ export default defineCommand({
       ...(blocking && { sessionVersion: sql`${users.sessionVersion} + 1` }),
     }).where(eq(users.id, before.id)).returning();
     await audit(tx, ctx, blocking ? 'block' : input.isActive === true && !before.isActive ? 'unblock' : 'update', 'user', row.id, publicUser(before), publicUser(row));
+    changed(ctx, 'users', row.id, null);
     return publicUser(row);
   },
 });

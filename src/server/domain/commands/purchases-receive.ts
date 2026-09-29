@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { and, eq, sql } from 'drizzle-orm';
 import { purchases, stockMovements } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, factFields } from '../context';
 import { DECIDE_ROLES, orgPurchase, orgWarehouse, requireProjectWrite, requireSameProject } from '../authz';
 import { businessRule } from '../errors';
 import { quantity, uuid } from '../schemas';
@@ -33,7 +33,7 @@ export default defineCommand({
       const [rest] = await tx.select({ rest: sql<string>`${purchases.quantity} - ${purchases.receivedQuantity}` }).from(purchases).where(eq(purchases.id, p.id));
       throw businessRule(`Нельзя принять больше заказа: осталось ${rest.rest}`);
     }
-    const [movement] = await tx.insert(stockMovements).values({ materialId: p.materialId, warehouseId: w.id, projectId: p.projectId, purchaseId: p.id, type: 'receipt', quantity: q, note: `Приемка ${p.number}` }).returning();
+    const [movement] = await tx.insert(stockMovements).values({ materialId: p.materialId, warehouseId: w.id, projectId: p.projectId, purchaseId: p.id, type: 'receipt', quantity: q, note: `Приемка ${p.number}`, ...factFields(ctx) }).returning();
     await audit(tx, ctx, 'receive', 'purchase', p.id, p, { receivedQuantity: updated.receivedQuantity, status: updated.status, movementId: movement.id });
     return movement;
   },

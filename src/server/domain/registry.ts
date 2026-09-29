@@ -1,6 +1,6 @@
 import { ZodError } from 'zod';
 import type { Command } from './command';
-import type { CommandContext } from './context';
+import { resolveContext, type CommandRequest } from './context';
 import { DomainError, conflict, forbidden, invalid, notFound } from './errors';
 import organizationsCreate from './commands/organizations-create';
 import projectsCreate from './commands/projects-create';
@@ -40,7 +40,8 @@ export const httpCommands: Record<string, string> = {
 };
 
 // Единая точка записи: роль → валидация → транзакция (authorize + execute).
-export async function runCommand(ctx: CommandContext, name: string, raw: unknown) {
+export async function runCommand(req: CommandRequest, name: string, raw: unknown) {
+  const ctx = resolveContext(req);
   const cmd = commands[name];
   if (!cmd) throw notFound('Операция не найдена');
   // Пока временный пароль не сменён, доступна только смена пароля.

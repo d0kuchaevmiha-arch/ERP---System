@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { and, eq, sql } from 'drizzle-orm';
 import { expenses, notifications, stockMovements } from '@/db/schema';
 import { defineCommand } from '../command';
-import { audit } from '../context';
+import { audit, factFields } from '../context';
 import { WRITE_ROLES, orgMaterial, orgWarehouse, requireProjectWrite, requireTaskOfProject } from '../authz';
 import { businessRule, invalid } from '../errors';
 import { costOf } from '../money';
@@ -28,10 +28,10 @@ export default defineCommand({
     const [balance] = await tx.select({ total, enough: sql<boolean>`${total} >= ${String(input.quantity)}::numeric` }).from(stockMovements).where(and(eq(stockMovements.materialId, input.materialId), eq(stockMovements.warehouseId, input.warehouseId)));
     const outgoing = input.type === 'issue' || input.type === 'writeoff';
     if (outgoing && !balance.enough) throw businessRule(`Невозможно списать ${input.quantity} ${m.unit} материала «${m.name}»: доступно только ${balance.total} ${m.unit}.`);
-    const [row] = await tx.insert(stockMovements).values({ materialId: input.materialId, warehouseId: input.warehouseId, projectId, taskId: input.taskId || null, type: input.type, quantity: String(input.quantity), note: input.note }).returning();
+    const [row] = await tx.insert(stockMovements).values({ materialId: input.materialId, warehouseId: input.warehouseId, projectId, taskId: input.taskId || null, type: input.type, quantity: String(input.quantity), note: input.note, ...factFields(ctx) }).returning();
     await audit(tx, ctx, input.type, 'stock_movement', row.id, null, row);
     if (outgoing && projectId) {
-      await tx.insert(expenses).values({ projectId, taskId: input.taskId || null, category: 'Материалы', description: `Списание: ${m.name} · ${input.quantity} ${m.unit}`, amount: costOf(input.quantity, m.price), incurredAt: new Date().toISOString().slice(0, 10) });
+      await tx.insert(expenses).values({ projectId, taskId: input.taskId || null, category: 'Материалы', description: `Списание: ${m.name} · ${input.quantity} ${m.unit}`, amount: costOf(input.quantity, m.price), incurredAt: new Date().toISOString().slice(0, 10), ...factFields(ctx) });
     }
     if (Number(balance.total) + (outgoing ? -input.quantity : input.quantity) < Number(m.minStock)) await tx.insert(notifications).values({ userId: ctx.actor.id, title: 'Низкий остаток материала', body: m.name, href: '/warehouse' });
     return row;

@@ -19,7 +19,7 @@ export default async function Home() {
   let result: Awaited<ReturnType<typeof getOverview>> | null = null;
   let user: Awaited<ReturnType<typeof currentUser>> = null;
   try { [result, user] = await Promise.all([getOverview(), currentUser()]); } catch { /* база данных ещё не подготовлена */ }
-  if (!result) return <SystemScreen title="База данных не подготовлена">Выполните <code>npx drizzle-kit push</code> и команду загрузки демо-данных из README.</SystemScreen>;
+  if (!result) return <SystemScreen title="База данных не подготовлена">Выполните <code>npm run db:migrate</code> и команду загрузки демо-данных из README.</SystemScreen>;
   if (process.env.ERP_PRIVATE_MODE === 'true' && !user) return <SystemScreen title="Требуется вход">Для доступа к данным войдите в систему. <a href="/login">Перейти ко входу</a></SystemScreen>;
   return <Workspace initial={result} currentUser={user ? { name: user.name, role: user.role, email: user.email } : null} today={new Date().toISOString().slice(0, 10)} />;
 }

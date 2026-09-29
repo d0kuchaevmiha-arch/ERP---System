@@ -9,3 +9,4 @@ node_modules/
 # локальные материалы
 Claude outputs/
 /erp-screens.pdf
+next-env.d.ts

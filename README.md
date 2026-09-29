@@ -10,11 +10,11 @@
 4. Откройте http://localhost:3000, нажмите «Демо-просмотр» справа сверху и войдите как `director@monolit.local` с паролем из DEMO_PASSWORD. Для приватного режима установите `ERP_PRIVATE_MODE=true` и откройте `/login`.
 5. Повторная загрузка demo безопасна: seed пропускает существующую организацию. Для новой установки удалите volume только если данные не нужны.
 
-Контейнер приложения применяет схему Drizzle и загружает демонстрационные данные перед стартом. Healthcheck: `/api/health`. Для сквозной проверки API после запуска: `npx tsx --env-file=.env scripts/smoke.ts` (добавляет тестовый объект).
+Контейнер приложения применяет версионные миграции (`drizzle/`, для БД, созданных старым `push`, — baseline без изменения данных) и загружает демонстрационные данные перед стартом. Healthcheck: `/api/health`. Для сквозной проверки API после запуска: `npx tsx --env-file=.env scripts/smoke.ts` (добавляет тестовый объект).
 
 ### Без Docker
 
-`npm ci && npx drizzle-kit push && npx tsx --env-file=.env scripts/seed.ts && npm run dev`. Нужен PostgreSQL и заполненный DATABASE_URL.
+`npm ci && npm run db:migrate && npx tsx --env-file=.env scripts/seed.ts && npm run dev`. Нужен PostgreSQL и заполненный DATABASE_URL.
 
 ### Сквозной сценарий
 

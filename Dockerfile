@@ -10,4 +10,4 @@ WORKDIR /app
 COPY --from=build /app ./
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 EXPOSE 3000
-CMD ["sh","-c","npx drizzle-kit push && npx tsx scripts/seed.ts && npm run start"]
+CMD ["sh","-c","npx tsx scripts/migrate.ts && npx tsx scripts/seed.ts && npm run start"]

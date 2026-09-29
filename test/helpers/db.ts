@@ -22,3 +22,11 @@ export async function createEmptyDb() {
     },
   };
 }
+
+// БД со всеми версионными миграциями — основа интеграционных тестов.
+export async function createMigratedDb() {
+  const { runMigrations } = await import('@/server/db/migrate');
+  const t = await createEmptyDb();
+  await runMigrations(t.pool, { log: () => {} });
+  return t;
+}

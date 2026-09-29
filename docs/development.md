@@ -1,6 +1,6 @@
 # Разработка и проверки
 
-`npm ci`; задать DATABASE_URL в `.env`; `npx drizzle-kit push`; `npx tsx --env-file=.env scripts/seed.ts`; `npm run dev`.
+`npm ci`; задать DATABASE_URL в `.env`; `npm run db:migrate` (версионные миграции; `drizzle-kit push` не использовать, изменения схемы — `npm run db:generate`); `npx tsx --env-file=.env scripts/seed.ts`; `npm run dev`.
 
 Проверки: `npx next typegen`, `npm exec tsc -- --noEmit --pretty false`, `npm run build`, `npm run lint`. Сид выполняется только на пустой базе. Для автоматического HTTP smoke-теста после запуска: `npx tsx --env-file=.env scripts/smoke.ts`. Он создает отдельный тестовый объект и проверяет проект → бюджет → работу → заявку → согласование → приемку → списание → расход → план/факт → аудит → отказ при дефиците. Тестовые записи сохраняются в demo-БД. Полный набор автоматизированных unit/integration/E2E тестов еще не создан; это блокер для production.
 

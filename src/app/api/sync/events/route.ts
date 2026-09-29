@@ -2,8 +2,8 @@ import type { NextRequest } from 'next/server';
 import { eq, max } from 'drizzle-orm';
 import { db } from '@/db';
 import { changeLog } from '@/db/schema';
-import { SESSION_COOKIE, verifySessionToken } from '@/server/auth/session';
-import { bearerToken, checkProtocol, verifyDeviceToken } from '@/server/auth/device';
+import { bearerToken, checkProtocol } from '@/server/auth/device';
+import { userFromRequest } from '@/server/http/request-user';
 import { getHub } from '@/server/realtime/instance';
 
 export const dynamic = 'force-dynamic';
@@ -17,8 +17,7 @@ export async function GET(req: NextRequest) {
   // Браузер — cookie; десктоп — токен устройства и заголовок версии протокола.
   const deviceToken = bearerToken(req.headers);
   if (deviceToken) { const proto = checkProtocol(req.headers); if (proto) return Response.json({ error: { message: proto.message } }, { status: proto.status }); }
-  const token = req.cookies.get(SESSION_COOKIE)?.value;
-  const who = async () => deviceToken ? (await verifyDeviceToken(db, deviceToken))?.user ?? null : verifySessionToken(db, token);
+  const who = async () => (await userFromRequest(req))?.user ?? null;
   const user = await who();
   if (!user) return Response.json({ error: { message: 'Войдите в систему' } }, { status: 401 });
   if (user.mustChangePassword) return Response.json({ error: { message: 'Смените пароль, чтобы продолжить' } }, { status: 403 });

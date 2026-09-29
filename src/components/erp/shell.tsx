@@ -23,6 +23,7 @@ import { RefsView } from './views/refs';
 import { ForemanView } from './views/foreman';
 import { UsersView } from './views/users';
 import { newOpKey } from './op-key';
+import { DesktopSync } from './desktop-sync';
 
 type Toast = { id: number; text: string; tone: 'ok' | 'err' };
 
@@ -247,13 +248,14 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
             <Search size={16} aria-hidden="true" /><span>Найти объект, заявку, действие…</span><kbd>Ctrl K</kbd>
           </button>
           <div className="ctx-tools">
+            {data.sync ? <DesktopSync sync={data.sync} /> : (
             <span className="ctx-sync hide-phone" role="status" data-live={live ? 'on' : 'off'} title={live ? 'Изменения других пользователей появляются автоматически' : 'Нет соединения для автообновления: данные обновляются раз в 30 секунд'}>
               {live ? 'Онлайн' : 'Автообновление недоступно'}{syncedAt && <> · обновлено {syncedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</>}
-            </span>
+            </span>)}
             <button type="button" className="icon-btn hide-phone" aria-pressed={density === 'comfortable'} aria-label={density === 'comfortable' ? 'Плотность: комфортно' : 'Плотность: компактно'} data-tip={density === 'comfortable' ? 'Комфортно (44 px)' : 'Компактно (34 px)'} onClick={() => setDensity(density === 'comfortable' ? 'compact' : 'comfortable')}>{density === 'comfortable' ? <Rows3 size={18} /> : <Rows4 size={18} />}</button>
             <button type="button" className="icon-btn" aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} data-tip={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
             {user ? (
-              <div className="ctx-user"><span className="ctx-user-text"><b>{user.name}</b><small>{roleLabel[user.role] || user.role}</small></span><a className="icon-btn" href="/account/password" aria-label="Сменить пароль" data-tip="Сменить пароль"><KeyRound size={18} /></a><button type="button" className="icon-btn" aria-label="Выйти из системы" data-tip="Выйти" onClick={logout}><LogOut size={18} /></button></div>
+              <div className="ctx-user"><span className="ctx-user-text"><b>{user.name}</b><small>{roleLabel[user.role] || user.role}</small></span><a className="icon-btn" href="/account/password" aria-label="Сменить пароль" data-tip="Сменить пароль"><KeyRound size={18} /></a>{!data.sync && <button type="button" className="icon-btn" aria-label="Выйти из системы" data-tip="Выйти" onClick={logout}><LogOut size={18} /></button>}</div>
             ) : (
               <button type="button" className="btn" onClick={() => setCreating({ kind: 'login', values: {} })}><LogIn size={16} aria-hidden="true" />Войти</button>
             )}

@@ -30,12 +30,12 @@ export class ChangeHub {
   private pruneTimer: ReturnType<typeof setInterval> | null = null;
   private starting: Promise<void> | null = null;
 
-  constructor(private readonly opts: { connectionString: string; db: Db; log?: (m: string) => void }) {}
+  constructor(private readonly opts: { connectionString: string; db: Db; log?: (m: string) => void; prune?: boolean }) {}
 
   start() {
     this.stopped = false;
     this.starting ??= this.connect();
-    if (!this.pruneTimer) {
+    if (!this.pruneTimer && this.opts.prune !== false) {
       void this.prune();
       this.pruneTimer = setInterval(() => void this.prune(), DAY_MS);
       this.pruneTimer.unref?.();

@@ -28,11 +28,16 @@ export function UsersView() {
   const [form, setForm] = useState({ name: '', email: '', role: 'foreman' });
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    try { setRows(await call('/api/admin/users', 'GET')); setError(''); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Не удалось загрузить пользователей'); }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
+  // Список перечитывается при каждом изменении version; состояние меняется только в ответе сервера.
+  const [version, setVersion] = useState(0);
+  const load = useCallback(async () => setVersion(v => v + 1), []);
+  useEffect(() => {
+    let alive = true;
+    call('/api/admin/users', 'GET')
+      .then(list => { if (alive) { setRows(list); setError(''); } })
+      .catch(e => { if (alive) setError(e instanceof Error ? e.message : 'Не удалось загрузить пользователей'); });
+    return () => { alive = false; };
+  }, [version]);
 
   async function act(fn: () => Promise<unknown>, ok: string) {
     try { await fn(); notify(ok); await load(); return true; }

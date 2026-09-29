@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
 
 // Смена пароля: обязательна после выдачи временного пароля, доступна и по кнопке в шапке.
@@ -36,7 +37,7 @@ export default function ChangePasswordPage() {
           <div className="field"><label htmlFor="new">Новый пароль — не короче 10 символов</label><input id="new" type="password" autoComplete="new-password" required minLength={10} value={form.newPassword} onChange={e => setForm({ ...form, newPassword: e.target.value })} /></div>
           <div className="field"><label htmlFor="rep">Повторите новый пароль</label><input id="rep" type="password" autoComplete="new-password" required minLength={10} value={form.repeat} onChange={e => setForm({ ...form, repeat: e.target.value })} /></div>
           <button className="btn btn-mark btn-xl" disabled={loading}>{loading ? 'Сохраняем…' : 'Сменить пароль'}</button>
-          <a className="link" href="/">Отмена</a>
+          <Link className="link" href="/">Отмена</Link>
         </div>
       </form>
     </main>

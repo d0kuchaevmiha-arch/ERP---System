@@ -6,6 +6,8 @@ import { DomainError, invalid } from '@/server/domain/errors';
 import { runCommand } from '@/server/domain/registry';
 import { clientIp } from './client-ip';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function errorResponse(message: string, status = 400) { return Response.json({ error: { message } }, { status }); }
 
 export function toErrorResponse(e: unknown) {
@@ -32,7 +34,10 @@ export async function commandResponse(req: NextRequest, name: string, input: (bo
   const user = await currentUser();
   if (!user) return errorResponse('Войдите в систему', 401);
   try {
-    const data = await runCommand({ db, actor: user, ip: clientIp(req.headers), userAgent: req.headers.get('user-agent') }, name, input(await readJson(req)));
+    // Необязательный ключ операции (UUID): повтор запроса с тем же ключом не выполняет команду второй раз.
+    const key = req.headers.get('idempotency-key');
+    if (key !== null && !UUID.test(key)) throw invalid('Idempotency-Key должен быть UUID');
+    const data = await runCommand({ db, actor: user, ip: clientIp(req.headers), userAgent: req.headers.get('user-agent'), prov: key ? { opId: key.toLowerCase() } : undefined }, name, input(await readJson(req)));
     await onSuccess?.(data, user);
     return Response.json({ data }, { status: 201 });
   } catch (e) { return toErrorResponse(e); }

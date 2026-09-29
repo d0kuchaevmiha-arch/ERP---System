@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useErp } from '../context';
 import { ConfirmButton, Empty, Sheet } from '../ui';
 import { roleLabel } from '@/lib/permissions';
+import { newOpKey } from '../op-key';
 
 type Access = { projectId: string; permission: 'view' | 'edit' };
 type UserRow = { id: string; name: string; email: string; role: string; isActive: boolean; mustChangePassword: boolean; access: Access[] };
@@ -11,7 +12,9 @@ type Secret = { email: string; password: string } | null;
 const assignable = Object.keys(roleLabel);
 
 async function call(url: string, method: string, body?: unknown) {
-  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (method !== 'GET') headers['Idempotency-Key'] = newOpKey();
+  const r = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error?.message || 'Операция не выполнена');
   return j.data;

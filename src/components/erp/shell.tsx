@@ -22,6 +22,7 @@ import { MoneyView } from './views/money';
 import { RefsView } from './views/refs';
 import { ForemanView } from './views/foreman';
 import { UsersView } from './views/users';
+import { newOpKey } from './op-key';
 
 type Toast = { id: number; text: string; tone: 'ok' | 'err' };
 
@@ -158,7 +159,8 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
   const post = useCallback(async (resource: string, body: Record<string, unknown>): Promise<PostResult> => {
     if (!user) { requireLogin(); return { ok: false, message: 'Войдите, чтобы выполнить операцию' }; }
     try {
-      const res = await fetch(`/api/v1/${resource}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      // Ключ операции: если ответ потерялся и запрос повторят, сервер не выполнит команду второй раз.
+      const res = await fetch(`/api/v1/${resource}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': newOpKey() }, body: JSON.stringify(body) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, message: json.error?.message || 'Операция не выполнена' };
       await refresh();

@@ -1,7 +1,8 @@
 import { ZodError } from 'zod';
 import type { Command } from './command';
-import { resolveContext, type CommandRequest } from './context';
+import { resolveContext, type CommandContext, type CommandRequest } from './context';
 import { flushChanges } from './changes';
+import { OpTaken, claimOp, findOp, payloadHash, replay, storeRejection, storeResult } from './idempotency';
 import { DomainError, conflict, forbidden, invalid, notFound } from './errors';
 import organizationsCreate from './commands/organizations-create';
 import projectsCreate from './commands/projects-create';
@@ -40,9 +41,24 @@ export const httpCommands: Record<string, string> = {
   approvals: 'approvals.decide', receive: 'purchases.receive', movements: 'movements.create',
 };
 
-// Единая точка записи: роль → валидация → транзакция (authorize + execute).
+// Единая точка записи: [ключ операции] → роль → валидация → транзакция (authorize + execute + change_log).
 export async function runCommand(req: CommandRequest, name: string, raw: unknown) {
   const ctx = resolveContext(req);
+  const opId = ctx.prov.opId;
+  if (!opId) return execute(ctx, name, raw);
+  const hash = payloadHash(name, raw);
+  const existing = await findOp(ctx.db, opId);
+  if (existing) return replay(existing, ctx, name, hash);
+  try {
+    return await execute(ctx, name, raw, hash);
+  } catch (e) {
+    if (e instanceof OpTaken) return replay((await findOp(ctx.db, opId))!, ctx, name, hash);
+    if (e instanceof DomainError && !(await storeRejection(ctx.db, ctx, name, hash, e))) return replay((await findOp(ctx.db, opId))!, ctx, name, hash);
+    throw e;
+  }
+}
+
+async function execute(ctx: CommandContext, name: string, raw: unknown, hash?: string) {
   const cmd = commands[name];
   if (!cmd) throw notFound('Операция не найдена');
   // Пока временный пароль не сменён, доступна только смена пароля.
@@ -53,9 +69,11 @@ export async function runCommand(req: CommandRequest, name: string, raw: unknown
   catch (e) { if (e instanceof ZodError) throw invalid('Проверьте поля формы: ' + e.issues.map(i => i.path.join('.')).join(', ')); throw e; }
   try {
     return await ctx.db.transaction(async tx => {
+      if (hash) await claimOp(tx, ctx, name, hash);
       const scope = await cmd.authorize(tx, ctx, input);
       const result = await cmd.execute(tx, ctx, input, scope);
       await flushChanges(tx, ctx.actor.organizationId, ctx.changes);
+      if (hash) await storeResult(tx, ctx.prov.opId!, result);
       return result;
     });
   } catch (e) {

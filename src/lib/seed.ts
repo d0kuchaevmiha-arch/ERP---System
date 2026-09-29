@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { organizations, users, projectAccess, counterparties, projects, tasks, budgetLines, expenses, materials, warehouses, stockMovements, purchases, approvals, notifications, contracts } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { hashPassword } from './session';
+import { hashPassword } from '@/server/auth/password';
 
 export async function seedDemo() {
   const existing = await db.select({ id: organizations.id }).from(organizations).limit(1);

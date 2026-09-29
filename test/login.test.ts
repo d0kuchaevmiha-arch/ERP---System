@@ -10,7 +10,7 @@ import { clientIp } from '@/server/http/client-ip';
 
 let t: TestDb;
 let other: Pool; // второй «экземпляр приложения» со своим пулом
-beforeAll(async () => { t = await createMigratedDb(); other = new Pool({ connectionString: t.url, max: 2 }); });
+beforeAll(async () => { t = await createMigratedDb(); other = new Pool({ connectionString: t.url, max: 2 }); other.on('error', () => {}); });
 afterAll(async () => { await other?.end(); await t?.drop(); });
 
 async function user() { const org = await createOrg(t.db); return createUser(t.db, org.id, 'foreman'); }

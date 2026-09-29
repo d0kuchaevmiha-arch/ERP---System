@@ -10,9 +10,12 @@ export type TestDb = Awaited<ReturnType<typeof createEmptyDb>>;
 export async function createEmptyDb() {
   const name = `t_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
   const admin = new Pool({ connectionString: ADMIN_URL, max: 1 });
+  admin.on('error', () => {});
   await admin.query(`create database ${name}`);
   const url = new URL(ADMIN_URL); url.pathname = `/${name}`;
   const pool = new Pool({ connectionString: url.toString(), max: 10 });
+  // drop() принудительно закрывает соединения к тестовой БД — ошибка простаивающего клиента ожидаема.
+  pool.on('error', () => {});
   return {
     name, url: url.toString(), pool, db: drizzle(pool),
     async drop() {

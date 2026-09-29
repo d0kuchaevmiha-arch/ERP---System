@@ -14,6 +14,7 @@ const signals: ChangeSignal[] = [];
 beforeAll(async () => {
   t = await createMigratedDb();
   listener = new Client({ connectionString: t.url });
+  listener.on('error', () => {});
   await listener.connect();
   listener.on('notification', n => { if (n.channel === CHANGES_CHANNEL) signals.push(JSON.parse(n.payload!)); });
   await listener.query(`listen ${CHANGES_CHANNEL}`);

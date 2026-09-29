@@ -17,6 +17,11 @@ export const pool =
     connectionString: databaseUrl,
   });
 
+// Обрыв простаивающего соединения (перезапуск PostgreSQL, сеть) не должен ронять процесс: пул создаст новое.
+if (!globalForDb.__arenaNextJsPostgresqlPool) {
+  pool.on("error", (e) => console.error("[db] idle client error:", e.message));
+}
+
 if (process.env.NODE_ENV !== "production") {
   globalForDb.__arenaNextJsPostgresqlPool = pool;
 }

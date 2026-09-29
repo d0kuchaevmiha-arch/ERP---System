@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <title>Энерготех — подключение</title>
+  <link rel="stylesheet" href="shell.css">
+</head>
+<body>
+  <form class="card" id="form" autocomplete="on">
+    <h1>Подключение к серверу</h1>
+    <p class="muted">Введите адрес сервера организации и свои учётные данные. Данные ваших объектов будут храниться на этом компьютере.</p>
+    <label for="server">Адрес сервера</label>
+    <input id="server" name="server" type="url" required placeholder="https://erp.company.ru">
+    <label for="email">Электронная почта</label>
+    <input id="email" name="email" type="email" required autocomplete="username">
+    <label for="password">Пароль</label>
+    <input id="password" name="password" type="password" required autocomplete="current-password">
+    <label for="device">Название этого компьютера</label>
+    <input id="device" name="device" type="text" required maxlength="100">
+    <div class="error" id="error" role="alert" hidden></div>
+    <button id="submit" type="submit">Подключить</button>
+  </form>
+  <script src="setup.js"></script>
+</body>
+</html>

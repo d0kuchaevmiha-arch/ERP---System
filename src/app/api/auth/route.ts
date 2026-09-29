@@ -6,6 +6,7 @@ import { authenticate } from '@/server/auth/login';
 import { SESSION_COOKIE, SESSION_TTL_MS, signSession } from '@/server/auth/session';
 import { clientIp } from '@/server/http/client-ip';
 import { isClientMode } from '@/client/local/session';
+import { foreignOrigin } from '@/server/http/command-route';
 
 // В десктопе вход и выход — через приложение (подключение устройства), а не через эту форму.
 const desktopOnly = () => Response.json({error:{message:'В приложении вход выполняется при подключении устройства; выйти — через меню «Файл → Отключить устройство»'}},{status:409});
@@ -13,7 +14,7 @@ const desktopOnly = () => Response.json({error:{message:'В приложении
 export async function GET() { const user = await currentUser(); return Response.json({user:user ? {id:user.id,name:user.name,role:user.role,email:user.email,mustChangePassword:user.mustChangePassword}:null}); }
 export async function POST(req: NextRequest) {
   if (isClientMode()) return desktopOnly();
-  const origin = req.headers.get('origin'); if(origin && origin !== req.nextUrl.origin) return Response.json({error:{message:'Недопустимый источник запроса'}},{status:403});
+  if (foreignOrigin(req)) return Response.json({error:{message:'Недопустимый источник запроса'}},{status:403});
   const { email, password } = await req.json().catch(() => ({}));
   if(typeof email !== 'string' || typeof password !== 'string') return Response.json({error:{message:'Введите email и пароль'}},{status:400});
   const result = await authenticate(db, { email, password, ip: clientIp(req.headers) });

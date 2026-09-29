@@ -11,14 +11,15 @@
     "test:watch": "vitest",
     "test:db:up": "docker compose --profile test up -d --wait db-test",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts"
+    "db:migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
+    "desktop:build": "node desktop/build.mjs",
+    "desktop:dev": "node desktop/build.mjs && electron .",
+    "dist": "node desktop/build.mjs && electron-builder --win nsis --config desktop/electron-builder.yml"
   },
   "dependencies": {
-    "@embedded-postgres/windows-x64": "^16.14.0-beta.17",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
     "electron-log": "^5.4.4",
-    "embedded-postgres": "^16.14.0-beta.17",
     "lucide-react": "^1.48.0",
     "next": "16.2.6",
     "pg": "8.20.0",
@@ -44,5 +45,11 @@
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3",
     "vitest": "^3.2.7"
+  },
+  "version": "0.4.0",
+  "main": "desktop/dist/main.js",
+  "description": "ERP «Энерготех» — управление стройкой",
+  "optionalDependencies": {
+    "@embedded-postgres/windows-x64": "16.14.0-beta.17"
   }
 }

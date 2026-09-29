@@ -136,7 +136,8 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
     let timer: ReturnType<typeof setTimeout> | undefined;
     const later = () => { clearTimeout(timer); timer = setTimeout(() => void refresh(), 1500); };
     const es = new EventSource('/api/sync/events');
-    es.addEventListener('ready', () => setLive(true));
+    // После (пере)подключения — одно перечитывание: изменения, случившиеся без подписки (загрузка страницы, обрыв), не теряются.
+    es.addEventListener('ready', () => { setLive(true); later(); });
     es.addEventListener('changes', later);
     es.onerror = () => setLive(false);
     const poll = setInterval(() => { if (es.readyState !== EventSource.OPEN) void refresh(); }, 30_000);

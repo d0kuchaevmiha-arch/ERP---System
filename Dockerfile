@@ -1,6 +1,8 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package*.json ./
+# Бинарники Electron и PostgreSQL для Windows серверу не нужны (десктоп собирается отдельно, npm run dist).
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 RUN npm install
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app_db

@@ -10,3 +10,7 @@ node_modules/
 Claude outputs/
 /erp-screens.pdf
 next-env.d.ts
+desktop/dist/
+dist-desktop/
+test-results/
+playwright-report/

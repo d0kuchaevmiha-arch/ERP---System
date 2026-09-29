@@ -3,3 +3,7 @@ node_modules
 .env
 .git
 *.log
+desktop/dist
+dist-desktop
+test-results
+playwright-report

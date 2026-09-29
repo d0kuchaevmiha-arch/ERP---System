@@ -17,10 +17,14 @@ export function toErrorResponse(e: unknown) {
   return errorResponse(e instanceof Error ? e.message : 'Ошибка операции', 400);
 }
 
-// Запрос с другого сайта отклоняется (защита от CSRF поверх SameSite-cookie).
-export function foreignOrigin(req: NextRequest) {
+// Запрос с другого сайта отклоняется (защита от CSRF поверх SameSite-cookie). Сравниваем хост из Origin с хостом,
+// на который пришёл запрос (Host, за прокси — X-Forwarded-Host): nextUrl.origin в standalone и за прокси —
+// внутренний адрес сервера, а не тот, что видит браузер.
+export function foreignOrigin(req: { headers: Headers }) {
   const origin = req.headers.get('origin');
-  return Boolean(origin && origin !== req.nextUrl.origin);
+  if (!origin) return false;
+  const host = req.headers.get('x-forwarded-host')?.split(',')[0].trim() || req.headers.get('host');
+  try { return !host || new URL(origin).host !== host; } catch { return true; }
 }
 
 // Пустое тело (например, у DELETE) — пустой объект; иначе — строго JSON.

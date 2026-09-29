@@ -1,5 +1,6 @@
 import { execFile, spawn } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyDir, removePath } from './fsx';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -27,7 +28,7 @@ export class LocalPostgres {
     writeFileSync(pwfile, this.opts.password, { mode: 0o600 });
     try {
       await run(this.bin('initdb'), ['-D', this.opts.dataDir, '-U', DB_USER, `--pwfile=${pwfile}`, '--encoding=UTF8', '--locale=C', '--auth=scram-sha-256'], { windowsHide: true });
-    } finally { rmSync(pwfile, { force: true }); }
+    } finally { removePath(pwfile); }
     this.log('кластер создан');
   }
 
@@ -37,7 +38,7 @@ export class LocalPostgres {
     if (!existsSync(file)) return false;
     const pid = Number(readFileSync(file, 'utf8').split('\n')[0]);
     if (pid && isAlive(pid)) return false;
-    rmSync(file, { force: true });
+    removePath(file);
     this.log(`удалён устаревший postmaster.pid (${pid})`);
     return true;
   }
@@ -98,7 +99,7 @@ export function asciiPgHome(pgHome: string, version: string, log?: (m: string) =
     const marker = path.join(target, '.complete');
     try {
       if (!existsSync(marker)) {
-        rmSync(target, { recursive: true, force: true });
+        removePath(target);
         mkdirSync(target, { recursive: true });
         copyDir(pgHome, target);
         writeFileSync(marker, version);
@@ -110,15 +111,6 @@ export function asciiPgHome(pgHome: string, version: string, log?: (m: string) =
   throw new Error('Путь к PostgreSQL содержит символы не ASCII, и нет доступного ASCII-каталога (ProgramData, PUBLIC)');
 }
 
-// fs.cpSync в Node 24 на Windows молча завершает процесс на не-ASCII путях (проверено) — копируем сами.
-function copyDir(from: string, to: string) {
-  mkdirSync(to, { recursive: true });
-  for (const e of readdirSync(from, { withFileTypes: true })) {
-    const a = path.join(from, e.name), b = path.join(to, e.name);
-    if (e.isDirectory()) copyDir(a, b); else copyFileSync(a, b);
-  }
-}
-
 function spawnQuiet(cmd: string, args: string[]) {
   return new Promise<number | null>((resolve, reject) => {
     const p = spawn(cmd, args, { stdio: 'ignore', windowsHide: true });
@@ -126,6 +118,8 @@ function spawnQuiet(cmd: string, args: string[]) {
     p.on('exit', code => resolve(code));
   });
 }
+
+export { copyDir };
 
 export function isAlive(pid: number) {
   try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; }

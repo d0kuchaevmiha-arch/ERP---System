@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { copyDir, removePath } from '../desktop/src/fsx';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -12,9 +13,21 @@ const root = mkdtempSync(path.join(tmpdir(), 'erp-pg-'));
 const pgHome = path.join(process.cwd(), 'node_modules', '@embedded-postgres', 'windows-x64', 'native');
 const asciiBase = path.join(root, 'ascii');
 const binDir = path.join(asciiPgHome(pgHome, '16.14', undefined, [asciiBase]), 'bin');
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => removePath(root));
 
 const freePort = () => new Promise<number>(res => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = (s.address() as { port: number }).port; s.close(() => res(p)); }); });
+
+describe('файловые операции на путях с кириллицей (обход ошибок fs.rmSync/cpSync Node 24)', () => {
+  it('копирование и удаление каталога «Пользователь Иванов» работают', () => {
+    const src = path.join(root, 'Исходник'); mkdirSync(path.join(src, 'вложенная'), { recursive: true });
+    writeFileSync(path.join(src, 'вложенная', 'файл.txt'), 'данные');
+    const dst = path.join(root, 'Пользователь Иванов', 'копия');
+    copyDir(src, dst);
+    expect(existsSync(path.join(dst, 'вложенная', 'файл.txt'))).toBe(true);
+    removePath(dst); removePath(src);
+    expect(existsSync(dst) || existsSync(src)).toBe(false);
+  });
+});
 
 describe.skipIf(process.platform !== 'win32')('локальный PostgreSQL', () => {
   it('путь к бинарникам с кириллицей заменяется ASCII-копией; ASCII-путь используется как есть', () => {

@@ -18,7 +18,6 @@ import approvalsDecide from './commands/approvals-decide';
 import purchasesReceive from './commands/purchases-receive';
 import movementsCreate from './commands/movements-create';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyCommand = Command<any, any, unknown>;
 const list: AnyCommand[] = [organizationsCreate, projectsCreate, tasksCreate, progressSet, budgetsCreate, expensesCreate, materialsCreate, warehousesCreate, counterpartiesCreate, contractsCreate, purchasesCreate, approvalsDecide, purchasesReceive, movementsCreate];
 export const commands: Record<string, AnyCommand> = Object.fromEntries(list.map(c => [c.name, c]));

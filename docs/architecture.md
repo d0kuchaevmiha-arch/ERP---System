@@ -2,12 +2,12 @@
 
 Модульный монолит на Next.js 16: UI (React), HTTP route handlers, сервисы/селекторы и PostgreSQL/Drizzle в одном развертываемом приложении. Внутренние границы: identity, organization, projects/planning, finance, supply/warehouse, approvals, audit, reporting. Расширение выделяется по модулям без сетевых вызовов между ними.
 
-Запись проходит `HTTP → Zod validation → session/role/project check → Drizzle transaction → audit → response`; чтение панели — `getOverview` с агрегатами. NUMERIC(18,2) для денег и NUMERIC(18,3) для количества. Для конкурентного списания используется транзакционный advisory lock по паре материал+склад. Истина остатков — журнал stock_movements. Приемка создает движение и обновляет заказ в одной транзакции.
+Запись проходит `HTTP → сессия (is_active, session_version) → runCommand: роль → Zod → транзакция { authorize (организация + project_access) → execute → audit } → response`. Команды живут в `src/server/domain/commands/` и станут общими для HTTP и синхронизации десктоп-клиента (спецификация `docs/superpowers/specs/2026-09-29-desktop-offline-sync-design.md`). Чтение — `src/server/read/overview.ts` только в пределах организации и доступных объектов. NUMERIC(18,2) для денег и NUMERIC(18,3) для количества; суммы и сравнения — в SQL. Конкурентность: advisory lock по паре материал+склад (списание), `FOR UPDATE` заявки (приёмка) и задачи (прогресс), условный UPDATE (согласование). Истина остатков — журнал stock_movements. Схема — версионные миграции `drizzle/`.
 
 ## Roadmap
 
 1. Текущий этап: проекты, WBS, бюджет, расход, заявка, согласование, заказ, приемка, склад, план/факт, CSV и dashboard.
-2. Миграции и тесты бизнес-транзакций; tenant isolation и полноценный RBAC.
+2. ~~Миграции и тесты бизнес-транзакций; изоляция организаций и объектов~~ — сделано в 0.2.0 (P1). Далее по спецификации: P2 доменный слой + реальное время, P3 десктоп-клиент, P4 офлайн-ввод, P5 эксплуатация.
 3. Импорт CSV/Excel с preview и rollback; документы с контролем MIME, версиями и ACL; фото.
 4. Планирование с зависимостями FS/SS/FF, лагами и критическим путем; сметы с версиями.
 5. Производственный журнал, техника, сотрудники, подрядчики и cash-flow; расширенные workflow.

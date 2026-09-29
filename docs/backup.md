@@ -1,3 +1,13 @@
 # Резервное копирование
 
-На локальном Compose: `docker compose exec -T db pg_dump -U postgres -Fc app_db > backup.dump`. Проверка восстановления **только на отдельной тестовой базе**: `createdb test_restore` и `pg_restore --no-owner --dbname=test_restore backup.dump` при доступном PostgreSQL. Для production храните зашифрованные копии вне узла, настройте расписание (cron/systemd timer), retention и регулярную проверку восстановления. Автоматическая задача backup пока не поставляется.
+На локальном Compose: `docker compose exec -T db pg_dump -U postgres -Fc app_db > backup.dump`. Проверка восстановления **только на отдельной тестовой базе**: `createdb test_restore` и `pg_restore --no-owner --dbname=test_restore backup.dump` при доступном PostgreSQL.
+
+**Перед обновлением на версию с миграциями (0.2.0)** сделайте дамп: миграции применяются автоматически при старте контейнера. Baseline существующей БД данные не меняет, а миграция `0001` только добавляет колонки со значениями по умолчанию и новую таблицу — но копия нужна на случай ручной сверки. Альтернатива для dev-volume — копия тома целиком при остановленных контейнерах:
+
+```bash
+docker run --rm -v <проект>_pgdata:/from:ro -v <проект>_pgdata_backup:/to alpine cp -a /from/. /to/
+```
+
+Журнал `drizzle.__drizzle_migrations` входит в дамп; после восстановления повторный запуск миграций — no-op.
+
+Для production: зашифрованные копии вне узла, расписание (cron/systemd timer), retention и регулярная проверка восстановления. Автоматическая задача backup пока не поставляется (P5).

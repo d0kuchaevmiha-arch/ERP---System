@@ -3,6 +3,7 @@
 ```mermaid
 erDiagram
  organizations ||--o{ users : employs
+ login_attempts
  organizations ||--o{ projects : owns
  organizations ||--o{ counterparties : registers
  users ||--o{ project_access : assigned
@@ -22,6 +23,18 @@ erDiagram
  organizations ||--o{ approvals : routes
  projects ||--o{ documents : attaches
 ```
+
+## Миграции
+
+Схема меняется только версионными миграциями Drizzle в `drizzle/` (`npm run db:generate` после правки `src/db/schema.ts`, ревью SQL, коммит). Применение — `npm run db:migrate` (или автоматически при старте контейнера: `scripts/migrate.ts`). `drizzle-kit push` не используется.
+
+- Журнал применённых миграций — `drizzle.__drizzle_migrations`. Параллельный запуск нескольких экземпляров безопасен (advisory lock).
+- **Baseline.** БД, созданная раньше через `push` (есть `public.organizations`, нет журнала), сначала сверяется со схемой `0000_baseline`: все таблицы и колонки должны существовать. Тогда `0000` помечается применённой без изменения данных, затем применяются остальные. При расхождении — остановка с перечнем недостающего; данные не трогаются, нужна ручная сверка.
+
+| Миграция | Содержание |
+|---|---|
+| `0000_baseline` | Схема 0.1.0 без изменений |
+| `0001_users_security` | `users.is_active`, `session_version`, `must_change_password`, `password_changed_at`; таблица `login_attempts (key PK, count, until)` |
 
 Все PK — UUID, создаются в БД; внешние ключи указаны в `src/db/schema.ts`. Ключевые таблицы: organizations, users, project_access, projects, counterparties, contracts, tasks, task_dependencies, budget_lines, expenses, materials, warehouses, stock_movements, purchases, approvals, documents, notifications, audit_logs.
 

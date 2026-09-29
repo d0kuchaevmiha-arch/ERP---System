@@ -25,9 +25,11 @@ export async function getScope(db: Db, user: SessionUser) {
   return { available: list, defaultScope: isOrgWide(user) ? [] : ids, orgWide: isOrgWide(user) };
 }
 
+// Текущий номер журнала организации; если журнал очищен целиком — не меньше номера последней очистки.
 async function currentSeq(db: Db, orgId: string) {
   const [r] = await db.select({ seq: max(changeLog.seq) }).from(changeLog).where(eq(changeLog.organizationId, orgId));
-  return r.seq ?? 0;
+  const [pruned] = await db.select({ value: orgCounters.value }).from(orgCounters).where(and(eq(orgCounters.organizationId, orgId), eq(orgCounters.name, PRUNED_COUNTER)));
+  return Math.max(r.seq ?? 0, pruned?.value ?? 0);
 }
 
 function entityOf(name: string) {
@@ -60,7 +62,8 @@ export type PullChange = { seq: number; entity: string; id: string; op: 'upsert'
 export async function pull(db: Db, scope: SyncScope, params: { since: number; limit?: number }) {
   const org = scope.user.organizationId;
   const limit = Math.min(Math.max(params.limit ?? PULL_LIMIT, 1), 5000);
-  if (params.since > 0) {
+  // Удалено из журнала больше, чем клиент успел получить (в том числе при since = 0) — только повторная загрузка.
+  {
     const [pruned] = await db.select({ value: orgCounters.value }).from(orgCounters).where(and(eq(orgCounters.organizationId, org), eq(orgCounters.name, PRUNED_COUNTER)));
     if (pruned && params.since < pruned.value) throw new DomainError('Журнал изменений устарел — нужна повторная загрузка данных', 410, 'resnapshot');
   }

@@ -4,9 +4,10 @@ import type { Db } from '@/server/db/types';
 import { CHANGES_CHANNEL } from '@/server/domain/changes';
 import { SYNC_ENTITY_NAMES } from '@/server/sync/entities';
 import { clearReplica, deleteRows, purgeOutsideScope, replicaSession, upsertRows } from './apply';
+import { pushPending, reapplyActive, refreshBefore, settleConflicts } from './outbox-sync';
 import { isGone, isOutdated, isRevoked, type SyncTransport } from './transport';
 
-// Sync-agent десктопа (§6.6, без push — это P4): первичная загрузка, затем pull до конца, применение к реплике,
+// Sync-agent десктопа (§6.6): отправка очереди (push), первичная загрузка, затем pull до конца, применение к реплике,
 // локальный сигнал интерфейсу. Пример из жизни: курьер, который приносит в филиал копии всех новых документов.
 
 export type SyncState = typeof syncState.$inferSelect;
@@ -21,10 +22,11 @@ export class SyncAgent {
     return st;
   }
 
-  // Один проход: при необходимости snapshot, затем pull до hasMore=false. Возвращает число применённых изменений.
+  // Один проход: push очереди, при необходимости snapshot, затем pull до hasMore=false. Возвращает число применённых изменений.
   async syncOnce(retried = false): Promise<number> {
     try {
       let st = await this.state();
+      if (!retried) await pushPending(this.opts.db, this.opts.transport, () => notifyLocal(this.opts.db, st.organizationId, st.lastSeq));
       if (st.snapshotRequired) { await this.fullSnapshot(st); st = await this.state(); }
       let applied = 0;
       for (;;) {
@@ -36,8 +38,9 @@ export class SyncAgent {
           await replicaSession(tx);
           for (const c of r.changes) {
             if (c.op === 'delete') await deleteRows(tx, c.entity, [c.id]);
-            else await upsertRows(tx, c.entity, [c.row!]);
+            else { await upsertRows(tx, c.entity, [c.row!]); await refreshBefore(tx, c.entity, c.row!); }
           }
+          await settleConflicts(tx);
           if (r.scope.length < st.effectiveScope.length) await purgeOutsideScope(tx, r.scope);
           const self = r.changes.find(c => c.entity === 'users' && c.id === st.userId && c.row);
           const roleChanged = self && (self.row as { role: string }).role !== st.userRole;
@@ -77,6 +80,8 @@ export class SyncAgent {
       await replicaSession(tx);
       await clearReplica(tx);
       for (const p of pages) await upsertRows(tx, p.entity, p.rows);
+      await reapplyActive(tx, st.userId, st.deviceId, this.opts.log);
+      await settleConflicts(tx);
       const self = pages.find(p => p.entity === 'users')?.rows.find(r => r.id === st.userId) as { role?: string } | undefined;
       await tx.update(syncState).set({ lastSeq: seq, effectiveScope: scope, snapshotRequired: false, userRole: self?.role ?? st.userRole, lastPullAt: new Date(), status: 'ok', lastError: null, updatedAt: new Date() }).where(eq(syncState.id, 1));
       await notifyLocal(tx, st.organizationId, seq);

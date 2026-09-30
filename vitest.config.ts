@@ -8,8 +8,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.ts'],
-    // Сценарии P4 — отдельно (npm run test:sync), пока офлайн-ввод не готов.
-    exclude: ['test/sync-scenarios.test.ts', 'node_modules/**'],
     testTimeout: 30_000,
     hookTimeout: 60_000,
     env: {

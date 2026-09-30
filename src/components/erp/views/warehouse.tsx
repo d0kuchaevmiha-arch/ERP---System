@@ -1,5 +1,6 @@
 'use client';
 import { useErp } from '../context';
+import { SyncMark } from '../desktop-sync';
 import { useActions } from '../actions';
 import { Empty, Sheet } from '../ui';
 import { StockRuler } from '../stock-ruler';
@@ -38,7 +39,7 @@ export function WarehouseView() {
           <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Таблица, прокручивается по горизонтали"><table className="tbl">
             <thead><tr><th>Дата</th><th>Материал</th><th>Операция</th><th className="r">Количество</th><th>Основание</th></tr></thead>
             <tbody>{data.movements.slice(0, 15).map(m => { const mat = data.materials.find(x => x.id === m.materialId); return (
-              <tr key={m.id}><td>{date(new Date(m.createdAt).toISOString().slice(0, 10))}</td><td>{mat?.name}</td><td>{movementLabel[m.type] || m.type}</td><td className="r num">{isIncoming(m.type) ? '+' : '−'}{rub(Number(m.quantity))} {mat?.unit}</td><td className="muted">{m.note || '—'}</td></tr>); })}</tbody>
+              <tr key={m.id}><td>{date(new Date(m.createdAt).toISOString().slice(0, 10))}</td><td>{mat?.name}</td><td>{movementLabel[m.type] || m.type}</td><td className="r num">{isIncoming(m.type) ? '+' : '−'}{rub(Number(m.quantity))} {mat?.unit}</td><td className="muted">{m.note || '—'}<SyncMark id={m.id} /></td></tr>); })}</tbody>
           </table></div>
         )}
       </Sheet>

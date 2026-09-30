@@ -188,3 +188,13 @@ i[class^='k-'] { display: inline-block; width: 16px; height: 9px; flex: none; }
 
 .cards { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
 .card-pick { display: flex; gap: 10px; align-items: center; }
+
+/* P4: пометки офлайн-ввода и «Требует решения» */
+.sync-mark { margin-left: 8px; font-size: 11px; border: 1px dashed currentColor; padding: 0 5px; line-height: 18px; }
+.conflict-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.conflict-card { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line-strong); border-left: 3px solid var(--st-err); background: var(--sheet); }
+.conflict-card p { margin: 0; }
+.conflict-head { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: baseline; }
+.conflict-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.conflict-form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.conflict-form input, .conflict-form select { min-width: 140px; }

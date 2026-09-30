@@ -14,7 +14,7 @@ export type BudgetLine = Data['budgets'][number];
 
 export type User = { name: string; role: string; email: string } | null;
 
-export type ViewKey = 'today' | 'projects' | 'money' | 'supply' | 'refs';
+export type ViewKey = 'today' | 'projects' | 'money' | 'supply' | 'refs' | 'sync';
 export type Nav = { view: ViewKey; sub: string };
 
 export type DrawerKind = 'project' | 'task' | 'purchase' | 'material' | 'expense' | 'contract' | 'counterparty' | 'notes';

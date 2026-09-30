@@ -2,6 +2,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useErp } from '../context';
+import { SyncMark } from '../desktop-sync';
 import { useActions } from '../actions';
 import { Mark } from '../marks';
 import { Status } from '../ui';
@@ -165,7 +166,7 @@ function RowBody({ row, today, project }: { row: Row; today: string; project: Pr
       <span className="wbs-code num">{t.code || '·'}</span>
       <span className="wbs-main"><b>{t.name}</b><span className="muted small">{taskKindLabel[t.kind] || t.kind} · {dateShort(t.startDate)} — {dateShort(t.endDate)}{late > 0 ? ` · позже срока на ${days(late)}` : ''}</span></span>
       <span className="wbs-scale"><TripleScale plan={elapsedShare(t.startDate, t.endDate, today)} fact={t.progress} max={100} format={n => `${Math.round(n)}%`} label={`Готовность: ${t.name}`} values={false} size="sm" /></span>
-      <span className="wbs-val num">{t.progress}%</span>
+      <span className="wbs-val num">{t.progress}%<SyncMark id={t.id} /></span>
       <span className="wbs-act">{t.delayed ? <Status status="delayed" /> : <Status status={t.status} />}{acts.canWrite && t.progress < 100 && <button type="button" className="btn" onClick={e => { e.stopPropagation(); openDrawer({ kind: 'task', id: t.id }); }}>Внести</button>}</span>
     </>;
   }

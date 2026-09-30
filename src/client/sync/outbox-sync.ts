@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, lt, ne, sql } from 'drizzle-orm';
 import { syncConflicts, users } from '@/db/schema';
 import { localRows, outbox, syncState } from '@/client/db/schema';
 import type { Db, Tx } from '@/server/db/types';
@@ -15,13 +15,19 @@ export async function recoverSending(db: Db) {
   await db.update(outbox).set({ status: 'pending' }).where(eq(outbox.status, 'sending'));
 }
 
+// Принятые сервером операции хранятся на ноутбуке 30 дней (Допущение P4), отклонённые — не удаляются.
+export const APPLIED_RETENTION_DAYS = 30;
+export async function pruneApplied(db: Db, now = new Date()) {
+  await db.delete(outbox).where(and(eq(outbox.status, 'applied'), lt(outbox.settledAt, new Date(now.getTime() - APPLIED_RETENTION_DAYS * 86_400_000))));
+}
+
 // Отправить все pending по порядку пакетами ≤ 200. Ошибка сети — операции снова pending, ошибка наверх.
 export async function pushPending(db: Db, transport: SyncTransport, onSettled?: () => Promise<void>) {
   await recoverSending(db);
   let sent = 0;
   for (;;) {
     const batch = await db.select().from(outbox).where(eq(outbox.status, 'pending')).orderBy(asc(outbox.seq)).limit(PUSH_LIMIT);
-    if (!batch.length) return sent;
+    if (!batch.length) { if (!sent) await pruneApplied(db); return sent; }
     const ids = batch.map(o => o.opId);
     await db.update(outbox).set({ status: 'sending', attempts: sql`${outbox.attempts} + 1`, sentAt: new Date() }).where(inArray(outbox.opId, ids));
     let results: PushResult[];

@@ -133,7 +133,8 @@ function DrawerBody({ target }: { target: NonNullable<DrawerRef> }) {
         <Rows items={[['Материал', p.material], ['Объект', p.project], ['Поставщик', p.supplier], ['Нужно к', date(p.dueAt)], ['Количество', `${rub(Number(p.receivedQuantity))} из ${rub(Number(p.quantity))} ${mat?.unit || ''}`], ['Цена', money(Number(p.unitPrice))], ['Комментарий', p.note || '—']]} />
         <section className="drawer-sec"><h3>Снабжение</h3><TripleScale plan={purchaseAmount(p)} fact={receivedAmount(p)} label="Заказано и принято" size="sm" /></section>
         <div className="drawer-actions">
-          {p.status === 'requested' && acts.canDecide && <>
+          {p.status === 'requested' && acts.canDecide && !acts.canApprove && <p className="muted small">Согласование — только при связи с сервером.</p>}
+          {p.status === 'requested' && acts.canApprove && <>
             <ConfirmButton label="Согласовать заявку" confirmLabel="Да, согласовать" onConfirm={async () => { if (await acts.approve(p.id)) erp.closeDrawer(); }} />
             <ConfirmButton tone="plain" label="Отклонить" confirmLabel="Да, отклонить" onConfirm={async () => { if (await acts.approve(p.id, 'reject')) erp.closeDrawer(); }} />
           </>}

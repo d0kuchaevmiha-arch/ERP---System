@@ -33,6 +33,9 @@ export type Erp = {
   setTheme: (t: Theme) => void;
   logout: () => Promise<void>;
   isPhone: boolean;
+  // Десктоп без связи: online_only-действия недоступны («нужна связь»). В браузере всегда true.
+  online: boolean;
+  needsLink: (resource: string) => boolean;
 };
 
 export const ErpContext = createContext<Erp | null>(null);

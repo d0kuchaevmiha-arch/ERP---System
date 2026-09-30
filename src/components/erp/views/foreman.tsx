@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowLeft, Minus, Plus, X } from 'lucide-react';
 import { useErp } from '../context';
+import { SyncMark } from '../desktop-sync';
 import { useActions } from '../actions';
 import { TripleScale } from '../triple-scale';
 import { Status } from '../ui';
@@ -40,7 +41,7 @@ export function ForemanView() {
                 <span className="work-title"><b>{t.name}</b><Status status={t.delayed ? 'delayed' : t.status} /></span>
                 <span className="muted small">{t.project} · до {dateShort(t.endDate)}{t.delayed ? ` · позже срока на ${days(lateDays(t, today))}` : ''}</span>
                 <TripleScale plan={elapsedShare(t.startDate, t.endDate, today)} fact={t.progress} max={100} format={n => `${Math.round(n)}%`} label={`Готовность: ${t.name}`} values={false} />
-                <span className="num work-pct">{t.progress}%</span>
+                <span className="num work-pct">{t.progress}%<SyncMark id={t.id} /></span>
               </button>
             </li>
           ))}

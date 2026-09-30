@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useErp } from '../context';
+import { SyncMark } from '../desktop-sync';
 import { useActions } from '../actions';
 import { Empty, Sheet } from '../ui';
 import { ScaleLegend, TripleScale } from '../triple-scale';
@@ -70,7 +71,7 @@ function Expenses() {
               <tr key={e.id} data-picked={picked.has(e.id) || undefined}>
                 <td className="chk"><input type="checkbox" aria-label={`Выбрать: ${e.description}`} checked={picked.has(e.id)} onChange={() => setPicked(s => { const n = new Set(s); if (n.has(e.id)) n.delete(e.id); else n.add(e.id); return n; })} /></td>
                 <td>{date(e.incurredAt)}</td>
-                <td><button className="link strong" onClick={() => openDrawer({ kind: 'expense', id: e.id })}>{e.description}</button></td>
+                <td><button className="link strong" onClick={() => openDrawer({ kind: 'expense', id: e.id })}>{e.description}</button><SyncMark id={e.id} /></td>
                 <td>{e.project}</td><td>{e.category}</td><td className="r num">{money(Number(e.amount))}</td>
               </tr>))}</tbody>
             <tfoot><tr><td colSpan={5}>Итого</td><td className="r num">{money(total)}</td></tr></tfoot>

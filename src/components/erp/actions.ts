@@ -5,9 +5,11 @@ import type { Purchase, Task } from './types';
 // Быстрые действия над записями: те же POST в API, что и раньше, но без модальных окон.
 // Для заявки передаётся version: если её уже изменил другой пользователь, сервер ответит 409, а не перезапишет.
 export function useActions() {
-  const { post, notify, create, can, data } = useErp();
+  const { post, notify, create, can, data, online } = useErp();
   return {
     canDecide: can('decide'),
+    // Согласование — только онлайн (§5.1); приёмка — и без связи.
+    canApprove: can('decide') && online,
     canWrite: can('write'),
     async approve(purchaseId: string, decision: 'approve' | 'reject' = 'approve') {
       const version = data.purchases.find(p => p.id === purchaseId)?.version;

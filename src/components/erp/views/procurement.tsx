@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useErp } from '../context';
+import { SyncMark } from '../desktop-sync';
 import { useActions } from '../actions';
 import { Empty, Segmented, Sheet, Status, useMedia, useStored } from '../ui';
 import { PurchaseAction } from '../parts';
@@ -64,7 +65,7 @@ export function ProcurementView() {
         {picked.size > 0 && (
           <div className="bulkbar" role="region" aria-label="Действия с выбранными заявками">
             <b>Выбрано: {picked.size}</b>
-            {acts.canDecide && approvable.length > 0 && <button className="btn btn-mark" disabled={busy} onClick={approveMany}>{busy ? 'Согласуем…' : `Согласовать (${approvable.length})`}</button>}
+            {acts.canApprove && approvable.length > 0 && <button className="btn btn-mark" disabled={busy} onClick={approveMany}>{busy ? 'Согласуем…' : `Согласовать (${approvable.length})`}</button>}
             <button className="btn" onClick={() => exportCSV(pickedRows, 'purchases-selected')}>Экспортировать</button>
             <button className="btn" onClick={() => setPicked(new Set())}>Снять выбор</button>
           </div>
@@ -80,7 +81,7 @@ export function ProcurementView() {
             <tbody>{list.map(p => (
               <tr key={p.id} data-picked={picked.has(p.id) || undefined}>
                 <td className="chk"><input type="checkbox" aria-label={`Выбрать заявку ${p.number}`} checked={picked.has(p.id)} onChange={() => toggle(p.id)} /></td>
-                <td><button className="link strong" onClick={() => openDrawer({ kind: 'purchase', id: p.id })}>{p.number}</button><small className="sub">{p.material}</small></td>
+                <td><button className="link strong" onClick={() => openDrawer({ kind: 'purchase', id: p.id })}>{p.number}</button><small className="sub">{p.material}</small><SyncMark id={p.id} /></td>
                 <td>{p.project}</td>
                 <td>{p.supplier}</td>
                 <td className="r num">{rub(Number(p.receivedQuantity))} / {rub(Number(p.quantity))}</td>

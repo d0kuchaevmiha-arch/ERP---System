@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import { localRows, outbox } from '@/client/db/schema';
 import type { Db } from '@/server/db/types';
 
@@ -10,8 +10,8 @@ export type OutboxItem = {
 };
 export type LocalMarks = { pending: string[]; conflict: string[] };
 
-export async function listOutbox(db: Db): Promise<OutboxItem[]> {
-  const rows = await db.select().from(outbox).orderBy(asc(outbox.seq));
+export async function listOutbox(db: Db, onlyOpen = false): Promise<OutboxItem[]> {
+  const rows = await db.select().from(outbox).where(onlyOpen ? and(ne(outbox.status, 'applied'), eq(outbox.hidden, false)) : undefined).orderBy(asc(outbox.seq));
   return rows.map(r => ({
     opId: r.opId, command: r.command, payload: r.payload, status: r.status as OutboxItem['status'], entityId: r.entityId,
     errorCode: r.errorCode, error: r.error, conflictId: r.conflictId, deviceCreatedAt: r.deviceCreatedAt.toISOString(),
@@ -35,4 +35,15 @@ export async function outboxCounts(db: Db) {
     conflict: rows.filter(r => r.status === 'conflict').length,
     rejected: rows.filter(r => r.status === 'rejected' && !r.hidden).length,
   };
+}
+
+// Для экранов «Очередь» и «Не принято сервером»: всё, что ещё не принято, и отклонённое, пока его не скрыли.
+export async function openOutbox(db: Db, limit = 500): Promise<OutboxItem[]> {
+  return (await listOutbox(db, true)).slice(-limit);
+}
+
+// «Скрыть» отклонённую операцию на экране (данные остаются в очереди и в экспорте).
+export async function hideRejected(db: Db, opId: string) {
+  const rows = await db.update(outbox).set({ hidden: true }).where(and(eq(outbox.opId, opId), eq(outbox.status, 'rejected'))).returning({ opId: outbox.opId });
+  return rows.length > 0;
 }

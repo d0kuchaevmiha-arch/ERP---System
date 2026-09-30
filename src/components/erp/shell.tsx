@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, Building2, KeyRound, ListChecks, Moon, PanelLeftClose, PanelLeftOpen, Rows3, Rows4, Search, Sun, Truck, Wallet, LogOut, LogIn } from 'lucide-react';
+import { BookOpen, Building2, KeyRound, ListChecks, Moon, PanelLeftClose, PanelLeftOpen, Rows3, Rows4, Search, ShieldAlert, Sun, Truck, Wallet, LogOut, LogIn } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Overview } from '@/lib/overview';
 import { BRAND } from '@/lib/brand';
@@ -24,6 +24,7 @@ import { ForemanView } from './views/foreman';
 import { UsersView } from './views/users';
 import { newOpKey } from './op-key';
 import { DesktopSync } from './desktop-sync';
+import { SyncView } from './views/sync';
 
 type Toast = { id: number; text: string; tone: 'ok' | 'err' };
 
@@ -33,13 +34,21 @@ const railItems: { view: ViewKey; label: string; icon: LucideIcon; sub?: string 
   { view: 'money', label: 'Деньги', icon: Wallet, sub: 'plan' },
   { view: 'supply', label: 'Снабжение', icon: Truck, sub: 'purchases' },
   { view: 'refs', label: 'Справочники', icon: BookOpen, sub: 'materials' },
+  { view: 'sync', label: 'Требует решения', icon: ShieldAlert, sub: 'conflicts' },
 ];
 const subs: Partial<Record<ViewKey, { value: string; label: string }[]>> = {
   projects: [{ value: 'registry', label: 'Реестр' }, { value: 'schedule', label: 'График работ' }],
   money: [{ value: 'plan', label: 'Бюджет' }, { value: 'expenses', label: 'Расходы' }],
   supply: [{ value: 'purchases', label: 'Закупки' }, { value: 'warehouse', label: 'Склад' }],
   refs: [{ value: 'materials', label: 'Материалы' }, { value: 'counterparties', label: 'Контрагенты' }, { value: 'contracts', label: 'Договоры' }, { value: 'reports', label: 'Отчёты' }, { value: 'users', label: 'Пользователи' }],
+  sync: [{ value: 'conflicts', label: 'Требует решения' }, { value: 'rejected', label: 'Не принято сервером' }, { value: 'queue', label: 'Очередь' }],
 };
+// Экраны очереди есть только в десктопе.
+const DESKTOP_SUBS = ['rejected', 'queue'];
+// Что можно вводить без связи (§5.1): ресурсы API и виды форм. Остальное в десктопе без связи — «нужна связь».
+const OFFLINE_RESOURCES = ['progress', 'expenses', 'purchases', 'movements', 'receive'];
+const OFFLINE_FORMS: CreateKind[] = ['expense', 'purchase', 'movement', 'receive', 'progress', 'login'];
+const NEED_LINK = 'Нужна связь с сервером: это действие выполняется только онлайн';
 // Экран «Пользователи» виден только тем, кому сервер разрешит управлять пользователями.
 const USER_ADMINS = ['director', 'super_admin'];
 // Ссылки старого интерфейса (?view=finance и т. п.) продолжают работать.
@@ -48,7 +57,7 @@ const legacy: Record<string, Nav> = {
   finance: { view: 'money', sub: 'plan' }, procurement: { view: 'supply', sub: 'purchases' }, warehouse: { view: 'supply', sub: 'warehouse' },
   materials: { view: 'refs', sub: 'materials' }, counterparties: { view: 'refs', sub: 'counterparties' }, contracts: { view: 'refs', sub: 'contracts' }, reports: { view: 'refs', sub: 'reports' },
 };
-const isView = (v: string): v is ViewKey => ['today', 'projects', 'money', 'supply', 'refs'].includes(v);
+const isView = (v: string): v is ViewKey => ['today', 'projects', 'money', 'supply', 'refs', 'sync'].includes(v);
 
 function parseLocation(): { nav: Nav; scope: string } | null {
   const m = window.location.pathname.match(/^\/projects\/([^/]+)/);
@@ -170,25 +179,33 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
     return true;
   }, [user, notify]);
 
+  const online = !data.sync || data.sync.status === 'ok';
+  const needsLink = useCallback((resource: string) => !online && !OFFLINE_RESOURCES.includes(resource), [online]);
+
   const create = useCallback((kind: CreateKind, values: Record<string, string> = {}) => {
     if (kind !== 'login' && !user) { setCreating({ kind: 'login', values: {} }); notify('Войдите, чтобы выполнить операцию', 'err'); return; }
+    if (!online && !OFFLINE_FORMS.includes(kind)) { notify(NEED_LINK, 'err'); return; }
     setDrawer(null);
     setCreating({ kind, values });
-  }, [user, notify]);
+  }, [user, notify, online]);
 
   const post = useCallback(async (resource: string, body: Record<string, unknown>): Promise<PostResult> => {
     if (!user) { requireLogin(); return { ok: false, message: 'Войдите, чтобы выполнить операцию' }; }
+    if (needsLink(resource)) return { ok: false, message: NEED_LINK };
     try {
       // Ключ операции: если ответ потерялся и запрос повторят, сервер не выполнит команду второй раз.
       const res = await fetch(`/api/v1/${resource}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': newOpKey() }, body: JSON.stringify(body) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, message: json.error?.message || 'Операция не выполнена' };
+      // Десктоп: сохранено в очереди без ответа сервера или сервер счёл операцию спорной.
+      if (json.sync === 'queued') notify('Сохранено на ноутбуке — отправится на сервер автоматически');
+      if (json.sync === 'conflict') notify(`Требует решения: ${json.warning}`, 'err');
       await refresh();
       return { ok: true };
     } catch {
       return { ok: false, message: 'Нет связи с сервером. Проверьте соединение и повторите.' };
     }
-  }, [user, requireLogin, refresh]);
+  }, [user, requireLogin, refresh, needsLink, notify]);
 
   // После выхода данные организации не остаются на экране: уходим на страницу входа.
   const logout = useCallback(async () => { await fetch('/api/auth', { method: 'DELETE' }); setUser(null); window.location.assign('/login'); }, []);
@@ -197,13 +214,14 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
   const closeDrawer = useCallback(() => setDrawer(null), []);
   const openPalette = useCallback(() => setPalette(true), []);
 
-  const ctx: Erp = useMemo(() => ({ data, user, today, scopeId, setScope, nav, go, openProject, drawer, openDrawer, closeDrawer, create, refresh, post, notify, can, requireLogin, openPalette, density, setDensity, theme, setTheme, logout, isPhone }),
-    [data, user, today, scopeId, setScope, nav, go, openProject, drawer, openDrawer, closeDrawer, create, refresh, post, notify, can, requireLogin, openPalette, density, setDensity, theme, setTheme, logout, isPhone]);
+  const ctx: Erp = useMemo(() => ({ data, user, today, scopeId, setScope, nav, go, openProject, drawer, openDrawer, closeDrawer, create, refresh, post, notify, can, requireLogin, openPalette, density, setDensity, theme, setTheme, logout, isPhone, online, needsLink }),
+    [data, user, today, scopeId, setScope, nav, go, openProject, drawer, openDrawer, closeDrawer, create, refresh, post, notify, can, requireLogin, openPalette, density, setDensity, theme, setTheme, logout, isPhone, online, needsLink]);
 
   const project = data.projects.find(p => p.id === scopeId);
   const pending = data.metrics.openRequests + data.metrics.delayedPurchases;
   const isUserAdmin = Boolean(user && USER_ADMINS.includes(user.role));
-  const subOptions = subs[nav.view]?.filter(o => o.value !== 'users' || isUserAdmin);
+  const subOptions = subs[nav.view]?.filter(o => (o.value !== 'users' || isUserAdmin) && (data.sync || !DESKTOP_SUBS.includes(o.value)));
+  const openConflicts = data.conflicts.filter(c => c.status === 'open').length;
   const showSub = subOptions && !(nav.view === 'projects' && project && nav.sub !== 'schedule');
 
   let content: React.ReactNode;
@@ -211,6 +229,7 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
   else if (nav.view === 'projects') content = nav.sub === 'schedule' ? <PlanView /> : project ? <ProjectView key={project.id} project={project} /> : <ProjectsPage />;
   else if (nav.view === 'money') content = <MoneyView sub={nav.sub || 'plan'} />;
   else if (nav.view === 'supply') content = nav.sub === 'warehouse' ? <WarehouseView /> : <ProcurementView />;
+  else if (nav.view === 'sync') content = <SyncView sub={data.sync || !DESKTOP_SUBS.includes(nav.sub) ? nav.sub || 'conflicts' : 'conflicts'} />;
   else if (nav.sub === 'users' && isUserAdmin) content = <UsersView />;
   else content = <RefsView sub={nav.sub || 'materials'} />;
 
@@ -229,6 +248,7 @@ export default function Workspace({ initial, currentUser, projectId, today: serv
                     <it.icon size={20} aria-hidden="true" />
                     <span className="rail-label">{it.label}</span>
                     {it.view === 'today' && pending > 0 && <span className="rail-badge" aria-label={`${pending} требуют внимания`}>{pending}</span>}
+                    {it.view === 'sync' && openConflicts > 0 && <span className="rail-badge" aria-label={`${openConflicts} спорных операций`}>{openConflicts}</span>}
                   </button>
                 </li>
               );

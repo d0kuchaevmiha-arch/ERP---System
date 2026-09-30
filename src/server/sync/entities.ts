@@ -2,9 +2,10 @@ import { and, eq, getTableColumns, inArray, isNull, or, sql, type SQL } from 'dr
 import type { PgTable } from 'drizzle-orm/pg-core';
 import {
   approvals, budgetLines, contracts, counterparties, expenses, materials, notifications, organizations, projectAccess,
-  projects, purchases, stockMovements, taskDependencies, taskProgressLog, tasks, users, warehouses,
+  projects, purchases, stockMovements, syncConflicts, taskDependencies, taskProgressLog, tasks, users, warehouses,
 } from '@/db/schema';
 import type { SessionUser } from '@/server/auth/session';
+import { conflictVisibility } from '@/server/read/conflicts';
 
 // Что реплицируется на ноутбук (§6.3, §10, решение P3 №7) и кому. Сервер — источник истины: клиент получает
 // только строки, которые пользователь и так видит онлайн, и только объекты из его офлайн-набора.
@@ -70,5 +71,7 @@ export const SYNC_ENTITIES: Record<string, Entity> = {
   },
   task_progress_log: { table: taskProgressLog, visible: s => inScope(taskProgressLog.projectId, s) },
   notifications: { table: notifications, visible: s => eq(notifications.userId, s.user.id) },
+  // Спорные офлайн-операции (P4): свои — чтобы автор узнал итог разбора; разбираемые — в офлайн-наборе.
+  sync_conflicts: { table: syncConflicts, visible: s => conflictVisibility(s.user, s.projectIds) },
 };
 export const SYNC_ENTITY_NAMES = Object.keys(SYNC_ENTITIES);

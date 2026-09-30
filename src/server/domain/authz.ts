@@ -65,6 +65,15 @@ export async function requireTaskOfProject(tx: Tx, actor: Actor, taskId: string 
   if (task.projectId !== projectId) throw invalid('Работа относится к другому объекту');
   return task;
 }
+// Кто разбирает спорные офлайн-операции (§14, решение P4 №6): склад — кладовщик/РП, приёмку — РП/снабженец;
+// директор и администратор — любые. Нужен ещё edit-доступ к объекту конфликта.
+export const CONFLICT_RESOLVERS: Record<string, readonly string[]> = {
+  insufficient_stock: ['warehouse_manager', 'project_manager', 'director', 'super_admin'],
+  over_receipt: ['project_manager', 'procurement_manager', 'director', 'super_admin'],
+};
+export const RESOLVE_ROLES = [...new Set(Object.values(CONFLICT_RESOLVERS).flat())];
+export const kindsResolvableBy = (role: string) => Object.keys(CONFLICT_RESOLVERS).filter(k => CONFLICT_RESOLVERS[k].includes(role));
+
 export function requireSameProject(entityProjectId: string | null, projectId: string, what: string) {
   if (entityProjectId && entityProjectId !== projectId) throw invalid(`${what} относится к другому объекту`);
 }

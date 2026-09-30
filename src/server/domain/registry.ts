@@ -25,12 +25,14 @@ import accessSet from './commands/access-set';
 import accessRemove from './commands/access-remove';
 import authChangePassword from './commands/auth-change-password';
 import devicesRevoke from './commands/devices-revoke';
+import conflictsResolve from './commands/conflicts-resolve';
+import conflictsDiscard from './commands/conflicts-discard';
 
 type AnyCommand = Command<any, any, unknown>;
 const list: AnyCommand[] = [
   organizationsCreate, projectsCreate, tasksCreate, progressSet, budgetsCreate, expensesCreate, materialsCreate, warehousesCreate,
   counterpartiesCreate, contractsCreate, purchasesCreate, approvalsDecide, purchasesReceive, movementsCreate,
-  usersCreate, usersUpdate, usersResetPassword, accessSet, accessRemove, authChangePassword, devicesRevoke,
+  usersCreate, usersUpdate, usersResetPassword, accessSet, accessRemove, authChangePassword, devicesRevoke, conflictsResolve, conflictsDiscard,
 ];
 export const commands: Record<string, AnyCommand> = Object.fromEntries(list.map(c => [c.name, c]));
 
@@ -40,6 +42,7 @@ export const httpCommands: Record<string, string> = {
   budgets: 'budgets.create', expenses: 'expenses.create', materials: 'materials.create', warehouses: 'warehouses.create',
   suppliers: 'counterparties.create', contracts: 'contracts.create', purchases: 'purchases.create',
   approvals: 'approvals.decide', receive: 'purchases.receive', movements: 'movements.create',
+  'conflict-resolve': 'conflicts.resolve', 'conflict-discard': 'conflicts.discard',
 };
 
 // Единая точка записи: [ключ операции] → роль → валидация → транзакция (authorize + execute + change_log).

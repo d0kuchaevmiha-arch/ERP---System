@@ -11,7 +11,7 @@ export const REPLICA_TABLES: Record<string, AnyTable> = {
   organizations: s.organizations, users: s.users, projects: s.projects, project_access: s.projectAccess, counterparties: s.counterparties,
   materials: s.materials, warehouses: s.warehouses, contracts: s.contracts, tasks: s.tasks, task_dependencies: s.taskDependencies,
   budget_lines: s.budgetLines, purchases: s.purchases, approvals: s.approvals, expenses: s.expenses, stock_movements: s.stockMovements,
-  task_progress_log: s.taskProgressLog, notifications: s.notifications,
+  task_progress_log: s.taskProgressLog, notifications: s.notifications, sync_conflicts: s.syncConflicts,
 };
 
 export async function replicaSession(tx: Tx) {

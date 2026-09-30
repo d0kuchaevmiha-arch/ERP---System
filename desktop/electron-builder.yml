@@ -42,5 +42,7 @@ nsis:
   shortcutName: Энерготех
   createDesktopShortcut: always
   createStartMenuShortcut: true
+  # Сценарий §1: установщик → ярлык → окно. Автозапуск после тихой установки мешал бы администраторам и автотестам.
+  runAfterFinish: false
   # Данные пользователя (%APPDATA%\ERP-Energotech: реплика, журналы, секреты) при удалении программы сохраняются.
   deleteAppDataOnUninstall: false

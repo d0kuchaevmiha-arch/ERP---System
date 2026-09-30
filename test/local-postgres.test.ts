@@ -61,6 +61,22 @@ describe.skipIf(process.platform !== 'win32')('локальный PostgreSQL', (
     }
   }, 120_000);
 
+  it('после аварии оболочки PostgreSQL этого каталога ещё работает — при запуске он штатно останавливается и стартует заново', async () => {
+    const dataDir = path.join(root, 'orphan', 'pgdata');
+    const first = new LocalPostgres({ binDir, dataDir, password: 'p' });
+    await first.initialise();
+    await first.start(await freePort());
+    const orphanPid = first.postmasterPid()!;
+    const second = new LocalPostgres({ binDir, dataDir, password: 'p' }); // новый запуск приложения
+    const port = await freePort();
+    await second.start(port);
+    try {
+      expect(isAlive(orphanPid)).toBe(false);
+      const c = new Client({ connectionString: second.url(port, 'postgres') });
+      await c.connect(); await c.end();
+    } finally { await second.stop(); }
+  }, 120_000);
+
   it('устаревший postmaster.pid после сбоя удаляется, кластер стартует', async () => {
     const dataDir = path.join(root, 'stale', 'pgdata');
     const pg = new LocalPostgres({ binDir, dataDir, password: 'p' });

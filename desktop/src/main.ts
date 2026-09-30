@@ -226,8 +226,10 @@ app.whenReady().then(() => {
   return boot();
 }).catch(async e => {
   log.error(e);
-  dialog.showErrorBox('Энерготех не запустился', `${(e as Error).message}\n\nЖурналы: ${DATA.logs}`);
+  // Сначала остановить процессы: модальное окно блокирует, и при принудительном закрытии PostgreSQL остался бы висеть.
+  quitting = true;
   await shutdown();
+  dialog.showErrorBox('Энерготех не запустился', `${(e as Error).message}\n\nЖурналы: ${DATA.logs}`);
   app.exit(1);
 });
 

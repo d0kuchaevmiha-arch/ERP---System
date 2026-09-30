@@ -44,6 +44,9 @@ export class LocalPostgres {
   }
 
   async start(port: number) {
+    // Оболочка упала, а PostgreSQL этого каталога данных остался работать — сначала штатно останавливаем его.
+    const pid = this.postmasterPid();
+    if (pid && isAlive(pid)) { this.log(`найден работающий PostgreSQL (${pid}) от прошлого запуска — останавливаем`); await this.stop(); }
     this.clearStalePid();
     // Сервер наследовал бы потоки вывода pg_ctl и держал их открытыми (execFile не дождался бы конца) —
     // запускаем без потоков, вывод сервера идёт в postgres.log, ждём завершения самого pg_ctl.

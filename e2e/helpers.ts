@@ -16,8 +16,10 @@ export function demoPassword() {
 }
 
 // Запуск приложения: собранный установщиком exe (E2E_APP) или dev-сборка из репозитория.
-export async function launch(dataDir: string): Promise<ElectronApplication> {
-  const env = { ...process.env, ERP_DATA_DIR: dataDir } as Record<string, string>;
+// dataDir = null — каталог по умолчанию (%APPDATA%\ERP-Energotech), как у пользователя после установки.
+export async function launch(dataDir: string | null): Promise<ElectronApplication> {
+  const env = { ...process.env } as Record<string, string>;
+  if (dataDir) env.ERP_DATA_DIR = dataDir; else delete env.ERP_DATA_DIR;
   delete env.ELECTRON_RUN_AS_NODE;
   return process.env.E2E_APP
     ? electron.launch({ executablePath: process.env.E2E_APP, env })

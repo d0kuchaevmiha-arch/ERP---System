@@ -40,5 +40,6 @@ if (!process.argv.includes('--skip-next')) {
   for (const f of readdirSync(standalone)) if (f.startsWith('.env')) { removePath(path.join(standalone, f)); console.log(`удалён ${f} из standalone`); }
   const left = readdirSync(standalone).filter(f => f.startsWith('.env'));
   if (left.length) throw new Error(`В standalone остались секреты: ${left.join(', ')}`);
+  if (!existsSync(path.join(standalone, 'server.js')) || !existsSync(path.join(standalone, 'node_modules', 'next'))) throw new Error('Next standalone неполный');
   console.log('Next standalone готов');
 }

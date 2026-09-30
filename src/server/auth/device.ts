@@ -50,3 +50,17 @@ export function checkProtocol(headers: Headers) {
   return headers.get('x-sync-protocol') === String(SYNC_PROTOCOL) ? null
     : { status: 426 as const, message: `Требуется версия протокола синхронизации ${SYNC_PROTOCOL}. Обновите приложение.` };
 }
+
+// Вход в десктоп при запуске (§7, решение P4 №11): пароль проверяется на сервере для пользователя устройства
+// (тот же лимит попыток, что и у входа). После успеха клиент обновляет свой офлайн-верификатор.
+// code: device_revoked — устройство отозвано/пользователь заблокирован (клиент стирает верификатор); bad_password — неверный пароль.
+type Verified = { ok: true; user: { id: string; name: string; email: string; role: string }; serverTime: string };
+type NotVerified = { ok: false; status: 401 | 403 | 429; code: string; message: string };
+export async function verifyDevicePassword(db: Db, input: { token: string | null; password: string; ip: string | null }, now = new Date()): Promise<Verified | NotVerified> {
+  const d = await verifyDeviceToken(db, input.token, now);
+  if (!d) return { ok: false, status: 401, code: 'device_revoked', message: 'Устройство отозвано или пользователь заблокирован — обратитесь к администратору' };
+  const auth = await authenticate(db, { email: d.user.email, password: input.password, ip: input.ip }, now);
+  if (!auth.ok) return { ok: false, status: auth.status, code: auth.status === 429 ? 'rate_limited' : 'bad_password', message: auth.status === 429 ? auth.message : 'Неверный пароль' };
+  if (auth.user.mustChangePassword) return { ok: false, status: 403, code: 'must_change_password', message: 'Смените временный пароль в браузере, затем войдите' };
+  return { ok: true, user: { id: d.user.id, name: d.user.name, email: d.user.email, role: d.user.role }, serverTime: now.toISOString() };
+}

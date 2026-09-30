@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <title>Энерготех — вход</title>
+  <link rel="stylesheet" href="shell.css">
+</head>
+<body>
+  <form class="card" id="form">
+    <h1>Вход</h1>
+    <p class="muted" id="who"></p>
+    <label for="login-password">Пароль</label>
+    <input id="login-password" name="password" type="password" required autocomplete="current-password" autofocus>
+    <div class="error" id="error" role="alert" hidden></div>
+    <p class="muted" id="note" hidden></p>
+    <button id="submit" type="submit">Войти</button>
+    <button id="export" type="button" class="secondary" hidden>Сохранить неотправленные данные в файл</button>
+  </form>
+  <script src="login.js"></script>
+</body>
+</html>

@@ -64,3 +64,20 @@ describe('локальная запись', () => {
     expect(await x.c.row('purchases', purchase.id)).toMatchObject({ status: 'received' });
   });
 });
+
+describe('экспорт очереди', () => {
+  it('в файле — неотправленные и отклонённые операции с причинами; без токена, пароля и принятых', async () => {
+    const { exportOutbox, EXPORT_FORMAT } = await import('@/client/offline/export');
+    const x = await setup('foreman');
+    const e = await x.c.write('expenses.create', { projectId: x.p1.id, category: 'Прочее', description: 'Бензин для генератора', amount: '2500.00' });
+    const data = await exportOutbox(x.c.local.db);
+    expect(data.format).toBe(EXPORT_FORMAT);
+    expect(data.device).toMatchObject({ deviceId: x.c.deviceId, userId: x.u.id });
+    expect(data.ops).toHaveLength(1);
+    expect(data.ops[0]).toMatchObject({ opId: e.opId, command: 'expenses.create', status: 'pending', payload: { description: 'Бензин для генератора', id: e.id } });
+    const text = JSON.stringify(data);
+    for (const secret of ['token', 'password', 'verifier', 'erpd_']) expect(text).not.toContain(secret);
+    x.c.online = true; expect(await x.c.sync()).toBe(true);
+    expect((await exportOutbox(x.c.local.db)).ops).toEqual([]);
+  });
+});

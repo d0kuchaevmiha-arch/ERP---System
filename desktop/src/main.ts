@@ -16,6 +16,8 @@ import { PG_VERSION, dataPaths, resourcePaths } from './paths';
 import { forgetDevice, loadSecrets, saveSecrets, type Device, type Secrets } from './secrets';
 import { freePort, startNodeChild, waitHttpOk, type Child } from './children';
 import { coldBackup, pendingMigrations } from './migrations';
+import { checkOffline, makeVerifier, passwordMatches, type Verifier } from '@/client/offline/local-auth';
+import { exportFileName, exportOutbox } from '@/client/offline/export';
 
 // Оболочка десктопа (§8): один экземпляр, свои порты, PostgreSQL → миграции → вход устройства → Next + sync-agent → окно.
 // Закрытие окна = выход: агент → Next → PostgreSQL. Трея нет.
@@ -99,7 +101,8 @@ async function startDatabase(secrets: Secrets) {
 }
 
 // Первый запуск: экран «адрес сервера + вход» → регистрация устройства на сервере (§6.1).
-function askForDevice(): Promise<Device> {
+// Успешная регистрация — это и онлайн-проверка пароля: сразу сохраняется офлайн-верификатор.
+function askForDevice(): Promise<{ device: Device; verifier: Verifier }> {
   return new Promise(resolve => {
     ipcMain.removeHandler('register');
     ipcMain.handle('setup-defaults', () => ({ serverUrl: readConfig().serverUrl ?? '', deviceName: readConfig().deviceName ?? hostname() }));
@@ -111,10 +114,13 @@ function askForDevice(): Promise<Device> {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sync-Protocol': String(SYNC_PROTOCOL) },
           body: JSON.stringify({ email: input.email, password: input.password, deviceName: input.deviceName || hostname(), appVersion: app.getVersion() }),
         });
-        const body = await r.json().catch(() => ({})) as { error?: { message?: string }; deviceId?: string; token?: string; user?: { id: string; organizationId: string; role: string; name: string } };
+        const body = await r.json().catch(() => ({})) as { error?: { message?: string }; deviceId?: string; token?: string; user?: { id: string; organizationId: string; role: string; name: string; email: string } };
         if (!r.ok || !body.token || !body.user || !body.deviceId) return { ok: false, message: body.error?.message ?? `Сервер ответил ${r.status}` };
         writeConfig({ serverUrl, deviceName: input.deviceName });
-        resolve({ deviceId: body.deviceId, token: body.token, userId: body.user.id, organizationId: body.user.organizationId, role: body.user.role, name: body.user.name, serverUrl });
+        resolve({
+          device: { deviceId: body.deviceId, token: body.token, userId: body.user.id, organizationId: body.user.organizationId, role: body.user.role, name: body.user.name, email: body.user.email, serverUrl },
+          verifier: makeVerifier(body.user.email, input.password, new Date()),
+        });
         return { ok: true };
       } catch (e) {
         return { ok: false, message: (e as Error).message.includes('ERR_') ? `Сервер недоступен или сертификат HTTPS не доверенный: ${(e as Error).message}` : (e as Error).message };
@@ -122,6 +128,92 @@ function askForDevice(): Promise<Device> {
     });
     void win?.loadFile(path.join(RES.ui, 'setup.html'));
   });
+}
+
+type Unlock = { ok: boolean; message?: string; canExport?: boolean };
+// Сохранённая проверка «просрочена» — офлайн-вход запрещён, сверка пароля для экспорта очереди остаётся.
+const expire = (v: Verifier): Verifier => ({ ...v, lastOnlineAuthAt: new Date(0).toISOString() });
+
+// Вход при каждом запуске (§7, решение P4 №11): пароль проверяет сервер; нет связи — сохранённая проверка ≤ 7 дней.
+// Сервер ответил «устройство отозвано / пользователь заблокирован» — офлайн-вход по сохранённой проверке прекращается.
+function askForPassword(secrets: Secrets): Promise<void> {
+  const d = secrets.device!;
+  return new Promise(resolve => {
+    ipcMain.removeHandler('login-info'); ipcMain.removeHandler('unlock');
+    ipcMain.handle('login-info', () => ({ name: d.name, email: d.email ?? secrets.verifier?.email ?? '', serverUrl: d.serverUrl }));
+    ipcMain.handle('unlock', async (_e, password: string): Promise<Unlock> => {
+      if (typeof password !== 'string' || !password) return { ok: false, message: 'Введите пароль' };
+      const online = await verifyOnline(d, password);
+      if (online.kind === 'ok') {
+        secrets.verifier = makeVerifier(online.email, password, online.serverTime);
+        saveSecrets(DATA.secrets, secrets);
+        log.info('вход: проверен сервером');
+        resolve();
+        return { ok: true };
+      }
+      if (online.kind === 'refused') {
+        if (online.code === 'device_revoked' && secrets.verifier) { secrets.verifier = expire(secrets.verifier); saveSecrets(DATA.secrets, secrets); }
+        return { ok: false, message: online.message, canExport: online.code === 'device_revoked' && Boolean(secrets.verifier) };
+      }
+      const c = checkOffline(secrets.verifier ?? null, password);
+      if (c.verifier) { secrets.verifier = c.verifier; saveSecrets(DATA.secrets, secrets); }
+      if (!c.ok) return { ok: false, message: `${online.message}. ${c.message}` };
+      log.info(`вход: без связи, по сохранённой проверке (осталось дней: ${c.daysLeft})`);
+      resolve();
+      return { ok: true };
+    });
+    void win?.loadFile(path.join(RES.ui, 'login.html'));
+  });
+}
+
+type Online = { kind: 'ok'; email: string; serverTime: Date } | { kind: 'refused'; code: string; message: string } | { kind: 'offline'; message: string };
+async function verifyOnline(d: Device, password: string): Promise<Online> {
+  try {
+    const r = await net.fetch(`${d.serverUrl}/api/auth/device/verify`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${d.token}`, 'X-Sync-Protocol': String(SYNC_PROTOCOL) },
+      body: JSON.stringify({ password }), signal: AbortSignal.timeout(8000),
+    });
+    const body = await r.json().catch(() => ({})) as { user?: { email: string }; serverTime?: string; error?: { message?: string; code?: string } };
+    if (r.ok && body.user && body.serverTime) return { kind: 'ok', email: body.user.email, serverTime: new Date(body.serverTime) };
+    // Сервер недоступен, перегружен или требует новую версию — как «нет связи»: вход по сохранённой проверке.
+    if (r.status >= 500 || r.status === 426) return { kind: 'offline', message: `Сервер ответил ${r.status}` };
+    return { kind: 'refused', code: body.error?.code ?? 'refused', message: body.error?.message ?? `Сервер ответил ${r.status}` };
+  } catch (e) {
+    log.warn(`вход: сервер недоступен: ${(e as Error).message}`);
+    return { kind: 'offline', message: 'Нет связи с сервером' };
+  }
+}
+
+// Экспорт очереди (§8) с экрана входа — только после сверки пароля с сохранённой проверкой (окно 7 дней не нужно).
+function registerExport(secrets: Secrets) {
+  ipcMain.removeHandler('export-queue');
+  ipcMain.handle('export-queue', async (_e, password: string) => {
+    if (!secrets.verifier || typeof password !== 'string' || !passwordMatches(secrets.verifier, password)) return { ok: false, message: 'Неверный пароль' };
+    return saveQueueFile();
+  });
+}
+async function saveQueueFile() {
+  if (!pool) return { ok: false, message: 'База данных не запущена' };
+  const data = await exportOutbox(drizzle(pool));
+  const { canceled, filePath } = await dialog.showSaveDialog(win!, { title: 'Сохранить неотправленные данные', defaultPath: path.join(app.getPath('documents'), exportFileName()), filters: [{ name: 'JSON', extensions: ['json'] }] });
+  if (canceled || !filePath) return { ok: false, message: 'Отменено' };
+  writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+  log.info(`очередь сохранена: ${filePath} (операций: ${data.ops.length})`);
+  return { ok: true, file: filePath };
+}
+
+// Устройство отозвано (агент получил 401): офлайн-вход по сохранённой проверке больше не разрешается.
+function watchRevocation(secrets: Secrets) {
+  const timer = setInterval(async () => {
+    if (!pool || !secrets.verifier || Date.parse(secrets.verifier.lastOnlineAuthAt) === 0) return;
+    const [st] = await drizzle(pool).select({ status: syncState.status }).from(syncState).where(eq(syncState.id, 1)).catch(() => []);
+    if (st?.status === 'revoked') {
+      secrets.verifier = expire(secrets.verifier);
+      saveSecrets(DATA.secrets, secrets);
+      log.warn('устройство отозвано: офлайн-вход отключён');
+    }
+  }, 60_000);
+  timer.unref();
 }
 
 async function waitForReplica(db: ReturnType<typeof drizzle>) {
@@ -141,13 +233,20 @@ async function boot() {
   const secrets = loadSecrets(DATA.secrets);
   const db0 = await startDatabase(secrets);
   const db = drizzle(pool!);
+  registerExport(secrets);
   if (!secrets.device) {
     status('Подключение к серверу организации');
-    secrets.device = await askForDevice();
+    const reg = await askForDevice();
+    secrets.device = reg.device; secrets.verifier = reg.verifier;
     saveSecrets(DATA.secrets, secrets);
     await initSyncState(db, { serverUrl: secrets.device.serverUrl, deviceId: secrets.device.deviceId, userId: secrets.device.userId, organizationId: secrets.device.organizationId, userRole: secrets.device.role });
     void win?.loadFile(path.join(RES.ui, 'loading.html'));
+  } else {
+    status('Вход');
+    await askForPassword(secrets);
+    void win?.loadFile(path.join(RES.ui, 'loading.html'));
   }
+  watchRevocation(secrets);
   const d = secrets.device;
   status('Запуск синхронизации…');
   children.push(startNodeChild('agent', RES.agent, { DATABASE_URL: db0.url, ERP_SERVER_URL: d.serverUrl, ERP_DEVICE_TOKEN: d.token }, DATA.logs));
@@ -173,6 +272,7 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'Файл', submenu: [
       { label: 'Доступно офлайн…', click: () => void win?.loadURL(`${localOrigin}/offline`) },
+      { label: 'Экспорт очереди в файл…', click: () => void saveQueueFile() },
       { label: 'Отключить устройство…', click: () => void disconnectDevice() },
       { type: 'separator' },
       { label: 'Выход', role: 'quit' },

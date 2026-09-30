@@ -9,6 +9,8 @@ import { isClientMode } from '@/client/local/session';
 import { forwardToServer } from '@/client/local/forward-route';
 import { localCommandResponse } from '@/client/local/write-route';
 import { isOfflineCommand } from '@/client/offline/write';
+import { includeCreatedProject, waitForProject } from '@/client/local/status';
+import { isOrgWide } from '@/server/domain/authz';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -43,7 +45,13 @@ export async function commandResponse(req: NextRequest, name: string, input: (bo
   const who = await userFromRequest(req);
   if (!who) return errorResponse('Войдите в систему', 401);
   // Десктоп: офлайн-команды — в локальную очередь (P4), остальные — на сервер организации (P3).
-  if (isClientMode()) return isOfflineCommand(name) ? localCommandResponse(name, input(await readJson(req)), who.user) : forwardToServer(req);
+  if (isClientMode()) {
+    if (isOfflineCommand(name)) return localCommandResponse(name, input(await readJson(req)), who.user);
+    const res = await forwardToServer(req);
+    // Созданный здесь объект сразу попадает в «Доступно офлайн» и загружается на ноутбук (иначе его не видно).
+    if (name === 'projects.create' && res.status === 201) await showCreatedProject(res.clone(), who.user);
+    return res;
+  }
   try {
     // Необязательный ключ операции (UUID): повтор запроса с тем же ключом не выполняет команду второй раз.
     const key = req.headers.get('idempotency-key');
@@ -54,4 +62,11 @@ export async function commandResponse(req: NextRequest, name: string, input: (bo
     const headers = meta.maxSeq ? { 'X-Change-Seq': String(meta.maxSeq) } : undefined;
     return Response.json({ data }, { status: 201, headers });
   } catch (e) { return toErrorResponse(e); }
+}
+
+async function showCreatedProject(res: Response, user: SessionUser) {
+  const id = ((await res.json().catch(() => null)) as { data?: { id?: string } } | null)?.data?.id;
+  if (!id) return;
+  await includeCreatedProject(db, id, isOrgWide(user));
+  await waitForProject(db, id, 15_000);
 }

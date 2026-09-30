@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { and, eq } from 'drizzle-orm';
+import { conflict } from '../errors';
 import { projectAccess, projects } from '@/db/schema';
 import { defineCommand } from '../command';
 import { audit, changed } from '../context';
@@ -8,7 +10,11 @@ import { amount } from '../schemas';
 export default defineCommand({
   name: 'projects.create', offline: 'online_only', roles: WRITE_ROLES,
   schema: z.object({ name: z.string().min(2), code: z.string().min(2), address: z.string().optional(), contractValue: amount.optional(), forecast: amount.optional(), endDate: z.string().optional(), description: z.string().optional() }),
-  async authorize() {},
+  // Код объекта уникален в организации: понятный отказ вместо общего «запись уже существует».
+  async authorize(tx, ctx, input) {
+    const [dup] = await tx.select({ name: projects.name }).from(projects).where(and(eq(projects.organizationId, ctx.actor.organizationId), eq(projects.code, input.code)));
+    if (dup) throw conflict(`Объект с кодом «${input.code}» уже есть: ${dup.name}`);
+  },
   async execute(tx, ctx, input) {
     const [row] = await tx.insert(projects).values({ organizationId: ctx.actor.organizationId, code: input.code, name: input.name, address: input.address, description: input.description, contractValue: String(input.contractValue || 0), forecast: String(input.forecast || 0), endDate: input.endDate || null, status: 'active' }).returning();
     await audit(tx, ctx, 'create', 'project', row.id, null, row);

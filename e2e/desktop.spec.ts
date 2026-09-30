@@ -82,3 +82,29 @@ test('повторный запуск < 15 с (без учёта ввода па
   } finally { await app.close(); }
   await expect.poll(() => leftoverProcesses(dataDir), { timeout: 20_000 }).toEqual([]);
 });
+
+test('объект, созданный в десктопе при явном наборе «Доступно офлайн», сразу виден; повторный код — понятный отказ', async () => {
+  const app = await launch(dataDir);
+  try {
+    const { page } = await unlock(app);
+    // Явный набор: только PRJ-001 (как после «Сохранить» на экране «Доступно офлайн»).
+    const ov = await page.evaluate(async () => (await fetch('/api/v1/overview')).json());
+    const p1 = ov.projects.find((p: { code: string }) => p.code === 'PRJ-001');
+    const saved = await page.evaluate(async id => (await fetch('/api/client/scope', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projects: [id] }) })).status, p1.id);
+    expect(saved).toBe(200);
+    await expect.poll(async () => (await page.evaluate(async () => (await fetch('/api/v1/overview')).json())).projects.length, { timeout: 60_000 }).toBe(1);
+
+    const code = `E2E-${tag}`;
+    const create = () => page.evaluate(async c => { const r = await fetch('/api/v1/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `Объект из десктопа ${c}`, code: c }) }); return { status: r.status, body: await r.json() }; }, code);
+    const first = await create();
+    expect(first.status, JSON.stringify(first.body)).toBe(201);
+    const after = await page.evaluate(async () => (await fetch('/api/v1/overview')).json());
+    expect(after.projects.map((p: { code: string }) => p.code)).toEqual(expect.arrayContaining(['PRJ-001', code]));
+    const again = await create();
+    expect(again.status).toBe(409);
+    expect(again.body.error.message).toContain(code);
+    // Вернуть набор по умолчанию для следующих прогонов.
+    await page.evaluate(async () => fetch('/api/client/scope', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projects: null }) }));
+  } finally { await app.close(); }
+  await expect.poll(() => leftoverProcesses(dataDir), { timeout: 20_000 }).toEqual([]);
+});

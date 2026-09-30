@@ -27,3 +27,26 @@ export async function setOfflineScope(db: Db, projects: string[] | null) {
   await db.update(syncState).set({ offlineScope: projects, snapshotRequired: true, updatedAt: new Date() }).where(eq(syncState.id, 1));
   await db.execute(sql`select pg_notify(${AGENT_CHANNEL}, 'snapshot')`);
 }
+
+// Объект, созданный в этом десктопе, всегда попадает в набор «Доступно офлайн» (иначе его не видно на ноутбуке).
+// Набор по умолчанию у не-директора и так включает все доступные объекты — менять ничего не нужно;
+// явный список и пустой набор директора дополняются этим объектом и загружаются заново. true — набор изменён.
+export async function includeCreatedProject(db: Db, projectId: string, orgWide: boolean): Promise<boolean> {
+  const [st] = await db.select({ offlineScope: syncState.offlineScope }).from(syncState).where(eq(syncState.id, 1));
+  if (!st) return false;
+  const current = st.offlineScope ?? (orgWide ? [] : null);
+  if (current === null || current.includes(projectId)) return false;
+  await setOfflineScope(db, [...current, projectId]);
+  return true;
+}
+
+// Дождаться, пока объект окажется в реплике (после повторной загрузки агентом).
+export async function waitForProject(db: Db, projectId: string, waitMs: number) {
+  const until = Date.now() + waitMs;
+  for (;;) {
+    const [st] = await db.select({ effectiveScope: syncState.effectiveScope, snapshotRequired: syncState.snapshotRequired }).from(syncState).where(eq(syncState.id, 1));
+    if (st && !st.snapshotRequired && st.effectiveScope.includes(projectId)) return true;
+    if (Date.now() > until) return false;
+    await new Promise(r => setTimeout(r, 200));
+  }
+}

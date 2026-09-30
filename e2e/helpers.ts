@@ -34,7 +34,12 @@ export async function mainWindow(app: ElectronApplication, timeout = 180_000): P
 }
 
 // Процессы приложения, связанные с каталогом данных/сборкой: postgres (по -D), Next и sync-agent (по пути скрипта).
+// Процессы, которые уже работали до тестов (например, у разработчика открыта своя программа), не считаются остатком.
+const before = new Set(listProcesses('<нет-такого-каталога>'));
 export function leftoverProcesses(dataDir: string) {
+  return listProcesses(dataDir).filter(p => !before.has(p));
+}
+function listProcesses(dataDir: string) {
   const ps = `Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and ($_.CommandLine.Contains('${dataDir.replace(/'/g, "''")}') -or $_.CommandLine -match 'desktop.dist.agent\\.js|standalone.server\\.js|resources.app-files') } | ForEach-Object { "$($_.ProcessId) $($_.Name)" }`;
   const out = execFileSync('powershell', ['-NoProfile', '-Command', ps], { encoding: 'utf8' }).trim();
   return out ? out.split(/\r?\n/) : [];

@@ -8,7 +8,7 @@ import { amount, uuid } from '../schemas';
 
 export default defineCommand({
   name: 'expenses.create', offline: 'allowed', roles: WRITE_ROLES,
-  schema: z.object({ projectId: uuid, category: z.string().min(2), description: z.string().min(2), amount, taskId: uuid.optional(), contractId: uuid.optional(), counterpartyId: uuid.optional(), incurredAt: z.string().optional() }),
+  schema: z.object({ projectId: uuid, category: z.string().min(2), description: z.string().min(2), amount, taskId: uuid.optional(), contractId: uuid.optional(), counterpartyId: uuid.optional(), incurredAt: z.string().optional(), id: uuid.optional() }),
   async authorize(tx, ctx, input) {
     const project = await requireProjectWrite(tx, ctx.actor, input.projectId);
     await requireTaskOfProject(tx, ctx.actor, input.taskId, project.id);
@@ -16,7 +16,7 @@ export default defineCommand({
     if (input.counterpartyId) await orgCounterparty(tx, ctx.actor, input.counterpartyId);
   },
   async execute(tx, ctx, input) {
-    const [row] = await tx.insert(expenses).values({ projectId: input.projectId, category: input.category, description: input.description, amount: String(input.amount), taskId: input.taskId || null, contractId: input.contractId || null, counterpartyId: input.counterpartyId || null, incurredAt: input.incurredAt || new Date().toISOString().slice(0, 10), ...factFields(ctx) }).returning();
+    const [row] = await tx.insert(expenses).values({ ...(input.id && { id: input.id }), projectId: input.projectId, category: input.category, description: input.description, amount: String(input.amount), taskId: input.taskId || null, contractId: input.contractId || null, counterpartyId: input.counterpartyId || null, incurredAt: input.incurredAt || new Date().toISOString().slice(0, 10), ...factFields(ctx) }).returning();
     await audit(tx, ctx, 'create', 'expense', row.id, null, row);
     changed(ctx, 'expenses', row.id, row.projectId);
     // Суммы и сравнение — в NUMERIC на стороне БД.

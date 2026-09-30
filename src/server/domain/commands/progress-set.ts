@@ -11,7 +11,7 @@ import { bump } from '../versions';
 // по времени устройства факт (§5.1): офлайн-запись, пришедшая после более свежей, остаётся в истории и не откатывает прогресс.
 export default defineCommand({
   name: 'progress.set', offline: 'allowed', roles: WRITE_ROLES,
-  schema: z.object({ taskId: uuid, progress: z.coerce.number().int().min(0).max(100), actualQuantity: quantityOrZero.optional() }),
+  schema: z.object({ taskId: uuid, progress: z.coerce.number().int().min(0).max(100), actualQuantity: quantityOrZero.optional(), id: uuid.optional() }),
   async authorize(tx, ctx, input) {
     // FOR UPDATE: параллельные факты по одной работе применяются по очереди.
     const task = await orgTask(tx, ctx.actor, input.taskId, true);
@@ -22,7 +22,7 @@ export default defineCommand({
     const reportedAt = ctx.prov.deviceCreatedAt;
     const applied = !old.progressReportedAt || reportedAt >= old.progressReportedAt;
     const [fact] = await tx.insert(taskProgressLog).values({
-      taskId: old.id, projectId: old.projectId, authorId: ctx.actor.id, progress: input.progress,
+      ...(input.id && { id: input.id }), taskId: old.id, projectId: old.projectId, authorId: ctx.actor.id, progress: input.progress,
       actualQuantity: input.actualQuantity === undefined ? null : String(input.actualQuantity), applied, ...factFields(ctx),
     }).returning();
     changed(ctx, 'task_progress_log', fact.id, old.projectId);

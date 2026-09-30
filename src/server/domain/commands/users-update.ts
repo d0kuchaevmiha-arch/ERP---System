@@ -22,14 +22,16 @@ export default defineCommand({
   },
   async execute(tx, ctx, input, before) {
     const blocking = input.isActive === false && before.isActive;
+    const unblocking = input.isActive === true && !before.isActive;
     const [row] = await tx.update(users).set({
       ...(input.name !== undefined && { name: input.name }),
       ...(input.role !== undefined && { role: input.role }),
       ...(input.isActive !== undefined && { isActive: input.isActive }),
-      ...(blocking && { sessionVersion: sql`${users.sessionVersion} + 1` }),
+      ...(blocking && { sessionVersion: sql`${users.sessionVersion} + 1`, blockedAt: new Date(), unblockedAt: null }),
+      ...(unblocking && { unblockedAt: new Date() }),
     }).where(eq(users.id, before.id)).returning();
     if (blocking) await revokeUserDevices(tx, row.id);
-    await audit(tx, ctx, blocking ? 'block' : input.isActive === true && !before.isActive ? 'unblock' : 'update', 'user', row.id, publicUser(before), publicUser(row));
+    await audit(tx, ctx, blocking ? 'block' : unblocking ? 'unblock' : 'update', 'user', row.id, publicUser(before), publicUser(row));
     changed(ctx, 'users', row.id, null);
     return publicUser(row);
   },

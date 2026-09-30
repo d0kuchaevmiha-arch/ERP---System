@@ -80,7 +80,7 @@ async function execute(ctx: CommandContext, name: string, raw: unknown, hash?: s
     });
   } catch (e) {
     // Нарушение уникальности (гонка двух одинаковых созданий) — понятный 409 вместо текста ошибки БД.
-    if (pgCode(e) === '23505') throw conflict('Запись с такими данными уже существует');
+    if (pgCode(e) === '23505') throw new DomainError('Запись с такими данными уже существует', 409, 'duplicate');
     throw e;
   }
 }

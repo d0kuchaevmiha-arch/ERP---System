@@ -40,6 +40,10 @@ erDiagram
 | `0000_baseline` | Схема 0.1.0 без изменений |
 | `0001_users_security` | `users.is_active`, `session_version`, `must_change_password`, `password_changed_at`; таблица `login_attempts (key PK, count, until)` |
 | `0002_provenance_versions_changelog` | Происхождение фактов; `version`/`updated_at`; `task_progress_log`, `change_log`, `sync_ops`, `org_counters`; `tasks.progress_reported_at`, `purchases.local_ref`. Бэкфилл: `server_received_at = created_at`, `updated_at = created_at`, у старых фактов `origin='online'`, `device_created_at` = NULL (неизвестно) |
+| `0003_devices` | `devices` (id, user_id, name, app_version, token_hash — только SHA-256, registered_at, last_sync_at, revoked_at) |
+
+### Локальная база десктопа (0.4.0)
+Та же схема (миграции `drizzle/`) — реплика. Плюс таблицы только клиента в **`drizzle-client/`** со своим журналом `drizzle.__drizzle_client_migrations` (на сервере их нет): `sync_state` (адрес сервера, устройство, пользователь, `last_seq`, выбранный и фактический офлайн-набор, признак повторной загрузки, статус для индикатора). Генерация: `npx drizzle-kit generate --config drizzle.client.config.ts`. В реплике: хеши паролей пустые, email коллег — заглушки `<id>@replica.invalid`, внешние ключи при применении пакетов не проверяются (целостность проверил сервер), `org_counters.change_log_pruned_seq` на сервере — номер, до которого очищен журнал изменений (для ответа 410).
 
 ### Происхождение и версии (0.3.0)
 - **Факты** (`expenses`, `stock_movements`, `purchases`, `task_progress_log`): `origin` ('online' | 'offline'), `device_id`, `device_created_at` (время ввода на устройстве), `server_received_at` (время приёма сервером), `op_id` (ключ операции). То же происхождение — в `audit_logs` (`origin`, `device_id`, `device_created_at`).

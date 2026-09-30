@@ -18,3 +18,11 @@
 3. Тест в `test/` на настоящей БД: права, изоляция, бизнес-правило.
 
 Деньги и количества сравнивать и складывать в NUMERIC на стороне БД; `Number` — только для отображения. Известный долг: агрегаты сводки (`src/server/read/overview.ts`) считаются в JS и без пагинации — вынести в SQL при росте данных.
+
+## Десктоп (0.4.0)
+- Код оболочки — `desktop/src` (main, preload, sync-agent, управление PostgreSQL), экраны запуска — `desktop/ui`, клиентская логика — `src/client` (реплика, sync-agent, режим `ERP_MODE=client`).
+- `npm run desktop:dev` — сборка и запуск из репозитория; `npm run dist` — установщик; `node scripts/check-desktop-package.mjs` — проверка сборки на секреты.
+- E2E: `npx playwright test e2e/desktop.spec.ts` (нужен `docker compose up`); собранная программа — `E2E_APP=...`; установщик — `E2E_INSTALLER=1 npx playwright test e2e/installed.spec.ts`.
+- Оценка объёма реплики по серверной БД: `docker compose exec app npx tsx scripts/estimate-replica.ts`.
+- Осторожно, Node 24 на Windows: `fs.rmSync` молча не удаляет, `fs.cpSync` молча завершает процесс на путях с кириллицей (папка проекта «ERP - Энерготех», профиль пользователя). Используйте `desktop/src/fsx.ts`.
+- Путь к бинарникам PostgreSQL не должен содержать не-ASCII символы (initdb падает) — `asciiPgHome` копирует их в `%ProgramData%`.

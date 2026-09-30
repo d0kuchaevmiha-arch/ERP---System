@@ -15,7 +15,6 @@ import purchasesReceive from './purchases-receive';
 // для списания) выполняется обычной командой — те же проверки остатка и заказа, в минус и сверх заказа нельзя.
 // Происхождение (устройство, время ввода, op_id) и id строки — исходные; аудит — от имени разбирающего.
 // Пример из жизни: кладовщик не выбрасывает спорную накладную прораба, а проводит её на то количество, что есть.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const inner: Record<string, Command<any, any, unknown>> = { 'movements.create': movementsCreate, 'purchases.receive': purchasesReceive };
 
 export default defineCommand({

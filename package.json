@@ -47,7 +47,7 @@
     "typescript": "5.9.3",
     "vitest": "^3.2.7"
   },
-  "version": "0.4.0",
+  "version": "0.5.0",
   "main": "desktop/dist/main.js",
   "description": "ERP «Энерготех» — управление стройкой",
   "optionalDependencies": {

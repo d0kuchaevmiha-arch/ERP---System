@@ -8,6 +8,7 @@ erDiagram
  organizations ||--o{ change_log : changes
  users ||--o{ sync_ops : operations
  organizations ||--o{ org_counters : numbers
+ organizations ||--o{ sync_conflicts : disputes
  organizations ||--o{ projects : owns
  organizations ||--o{ counterparties : registers
  users ||--o{ project_access : assigned
@@ -41,9 +42,15 @@ erDiagram
 | `0001_users_security` | `users.is_active`, `session_version`, `must_change_password`, `password_changed_at`; таблица `login_attempts (key PK, count, until)` |
 | `0002_provenance_versions_changelog` | Происхождение фактов; `version`/`updated_at`; `task_progress_log`, `change_log`, `sync_ops`, `org_counters`; `tasks.progress_reported_at`, `purchases.local_ref`. Бэкфилл: `server_received_at = created_at`, `updated_at = created_at`, у старых фактов `origin='online'`, `device_created_at` = NULL (неизвестно) |
 | `0003_devices` | `devices` (id, user_id, name, app_version, token_hash — только SHA-256, registered_at, last_sync_at, revoked_at) |
+| `0004_offline_sync` | `sync_conflicts` (op_id уникален, организация, объект, kind `insufficient_stock` / `over_receipt`, команда и её вход, причина, status `open` / `resolved` / `discarded`, assigned_role, автор, устройство, время ввода, кто и когда решил, resolution, version); `users.blocked_at`, `users.unblocked_at` — последний интервал блокировки (для отказа `user_blocked`). Существующие строки не меняются. `sync_ops.status` дополнительно принимает `conflict` |
 
 ### Локальная база десктопа (0.4.0)
-Та же схема (миграции `drizzle/`) — реплика. Плюс таблицы только клиента в **`drizzle-client/`** со своим журналом `drizzle.__drizzle_client_migrations` (на сервере их нет): `sync_state` (адрес сервера, устройство, пользователь, `last_seq`, выбранный и фактический офлайн-набор, признак повторной загрузки, статус для индикатора). Генерация: `npx drizzle-kit generate --config drizzle.client.config.ts`. В реплике: хеши паролей пустые, email коллег — заглушки `<id>@replica.invalid`, внешние ключи при применении пакетов не проверяются (целостность проверил сервер), `org_counters.change_log_pruned_seq` на сервере — номер, до которого очищен журнал изменений (для ответа 410).
+Та же схема (миграции `drizzle/`) — реплика. Плюс таблицы только клиента в **`drizzle-client/`** со своим журналом `drizzle.__drizzle_client_migrations` (на сервере их нет): `sync_state` (адрес сервера, устройство, пользователь, `last_seq`, выбранный и фактический офлайн-набор, признак повторной загрузки, статус для индикатора). Генерация: `npx drizzle-kit generate --config drizzle.client.config.ts`.
+
+**0.5.0 (P4), `drizzle-client/0001_outbox`:**
+- **`outbox`** — очередь операций, введённых на ноутбуке: `op_id` PK, `seq` (порядок ввода = порядок отправки), команда, вход, `device_created_at`, `status` `pending` → `sending` → `applied` | `rejected` | `conflict`, `entity_id` (id созданной строки), `depends_on uuid[]`, `error_code`/`error` (причина отказа), `conflict_id`, `attempts`, `hidden` (скрыта с экрана, но остаётся в экспорте), `sent_at`, `settled_at`.
+- **`local_rows`** — какие строки реплики записала операция: `op_id` → (`entity`, `entity_id`, `before`). `before` — строка до изменения в формате pull (NULL — строку создала операция). По `local_rows` делается откат при отказе и ставятся пометки «не синхронизировано» / «спорно»; при pull `before` обновляется до последней серверной версии.
+- Хранение: принятые операции — 30 дней, неотправленные и отклонённые не удаляются (Допущение P4). В реплике: хеши паролей пустые, email коллег — заглушки `<id>@replica.invalid`, внешние ключи при применении пакетов не проверяются (целостность проверил сервер), `org_counters.change_log_pruned_seq` на сервере — номер, до которого очищен журнал изменений (для ответа 410).
 
 ### Происхождение и версии (0.3.0)
 - **Факты** (`expenses`, `stock_movements`, `purchases`, `task_progress_log`): `origin` ('online' | 'offline'), `device_id`, `device_created_at` (время ввода на устройстве), `server_received_at` (время приёма сервером), `op_id` (ключ операции). То же происхождение — в `audit_logs` (`origin`, `device_id`, `device_created_at`).

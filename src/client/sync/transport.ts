@@ -1,3 +1,5 @@
+import type { PushOp, PushResult } from '@/server/sync/push';
+
 // Как агент разговаривает с сервером (§6). HTTP-реализация — http-transport.ts; в тестах — прямой вызов сервиса.
 
 export type ScopeInfo = { available: { id: string; code: string; name: string }[]; defaultScope: string[]; orgWide: boolean; user: { id: string; name: string; role: string; organizationId: string } };
@@ -8,6 +10,7 @@ export interface SyncTransport {
   scope(): Promise<ScopeInfo>;
   snapshot(entity: string, projects: string[] | null, cursor: string | null): Promise<SnapshotPage>;
   pull(since: number, projects: string[] | null): Promise<PullResult>;
+  push(ops: PushOp[]): Promise<{ results: PushResult[] }>;
 }
 
 // Ошибки, по которым агент меняет поведение.

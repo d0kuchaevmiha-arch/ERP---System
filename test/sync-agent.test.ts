@@ -30,6 +30,7 @@ function directTransport(userId: string): SyncTransport {
     scope: async () => { const u = await me(); return { ...(await getScope(server.db, u)), user: { id: u.id, name: u.name, role: u.role, organizationId: u.organizationId } }; },
     snapshot: async (entity, projects, cursor) => wrap(async () => JSON.parse(JSON.stringify(await snapshot(server.db, await resolveScope(server.db, await me(), projects), { entity, cursor, limit: 3 })))),
     pull: async (since, projects) => wrap(async () => JSON.parse(JSON.stringify(await pull(server.db, await resolveScope(server.db, await me(), projects), { since })))),
+    push: async () => ({ results: [] }),
   };
 }
 

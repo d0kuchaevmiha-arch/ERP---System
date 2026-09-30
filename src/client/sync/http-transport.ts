@@ -1,3 +1,4 @@
+import type { PushOp, PushResult } from '@/server/sync/push';
 import { SyncHttpError, type PullResult, type ScopeInfo, type SnapshotPage, type SyncTransport } from './transport';
 
 export const SYNC_PROTOCOL = 1;
@@ -28,6 +29,14 @@ export class HttpTransport implements SyncTransport {
   }
   pull(since: number, projects: string[] | null) {
     return this.get<PullResult>('/api/sync/pull', { since: String(since), projects: HttpTransport.projects(projects) });
+  }
+
+  // Отправка очереди (§6.4): порядок операций сохраняется, повтор безопасен (op_id).
+  async push(ops: PushOp[]) {
+    const r = await fetch(new URL('/api/sync/push', this.base), { method: 'POST', headers: this.headers({ 'Content-Type': 'application/json' }), body: JSON.stringify({ ops }), signal: AbortSignal.timeout(this.timeoutMs) });
+    const body = await r.json().catch(() => ({})) as { results?: PushResult[]; error?: { message?: string } };
+    if (!r.ok || !body.results) throw new SyncHttpError(body.error?.message ?? `HTTP ${r.status}`, r.status);
+    return { results: body.results };
   }
 
   // Подписка на сигналы сервера (SSE, §6.5). Завершается, когда сервер закрыл поток или сработал abort.

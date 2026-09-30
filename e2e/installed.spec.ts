@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { ROOT, SERVER, demoPassword, launch, leftoverProcesses, mainWindow } from './helpers';
+import { ROOT, SERVER, demoPassword, launch, leftoverProcesses, mainWindow, unlock } from './helpers';
 import { removePath } from '../desktop/src/fsx';
 
 // Установщик на этой машине (§12: установка, данные переживают переустановку). Ставит программу в профиль пользователя
@@ -72,7 +72,7 @@ test('первый запуск: подключение, данные в %APPDAT
   await expect.poll(() => leftoverProcesses(dataDir), { timeout: 20_000 }).toEqual([]);
 });
 
-test('удаление сохраняет данные; после повторной установки — без входа, с данными, < 15 с', async () => {
+test('удаление сохраняет данные; после повторной установки — без повторного подключения, с данными, < 15 с', async () => {
   await uninstall();
   expect(existsSync(path.join(dataDir, 'pgdata', 'PG_VERSION')), 'данные пропали после удаления').toBe(true);
   expect(existsSync(path.join(dataDir, 'secrets.bin'))).toBe(true);
@@ -82,9 +82,10 @@ test('удаление сохраняет данные; после повтор�
     const started = Date.now();
     const app = await launch(null);
     try {
-      const page = await mainWindow(app, 90_000);
+      // P4: при каждом запуске — пароль; время ввода пароля пользователем не считается.
+      const { page, toLogin, toWindow } = await unlock(app, demoPassword(), started);
       await expect(page.locator('body')).toContainText('Северный квартал');
-      return (Date.now() - started) / 1000;
+      return toLogin + toWindow;
     } finally { await app.close(); }
   };
   const cold = await measure();

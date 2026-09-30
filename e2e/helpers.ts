@@ -45,3 +45,17 @@ export async function serverLogin(email: string, password: string) {
   if (!r.ok) throw new Error(`login ${email}: ${r.status}`);
   return r.headers.get('set-cookie')!.split(';')[0];
 }
+
+// Вход при запуске (P4): экран пароля → окно интерфейса. Возвращает время до экрана входа и от пароля до окна.
+export async function unlock(app: ElectronApplication, password = demoPassword(), started = Date.now()) {
+  const w = await app.firstWindow();
+  await w.waitForSelector('#login-password', { timeout: 120_000 });
+  const toLogin = (Date.now() - started) / 1000;
+  await w.fill('#login-password', password);
+  const t = Date.now();
+  await w.click('#submit');
+  // Что раньше: окно интерфейса или ошибка входа на экране.
+  const failed = w.waitForSelector('#error:not([hidden])', { timeout: 90_000 }).then(() => true, () => false);
+  const page = await Promise.race([mainWindow(app, 90_000), failed.then(async f => { if (f) throw new Error(`Вход не удался: ${await w.textContent('#error')}`); return mainWindow(app, 90_000); })]);
+  return { page, toLogin, toWindow: (Date.now() - t) / 1000 };
+}

@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ROOT, SERVER, demoPassword, electronExe, launch, leftoverProcesses, mainWindow, serverLogin } from './helpers';
+import { ROOT, SERVER, demoPassword, electronExe, launch, leftoverProcesses, mainWindow, serverLogin, unlock } from './helpers';
 
 // Каталог данных — отдельный на прогон (как %APPDATA%\ERP-Energotech у пользователя), с кириллицей в пути (§13).
 const dataDir = path.join(mkdtempSync(path.join(tmpdir(), 'erp-e2e-')), 'Пользователь Иванов', 'ERP-Energotech');
@@ -26,7 +26,7 @@ test('первый запуск: подключение устройства →
     if (failed) throw new Error(`Подключение не удалось: ${await setup.textContent('#error')}`);
     const page = await mainWindow(app);
     await expect(page.locator('body')).toContainText('Северный квартал', { timeout: 60_000 });
-    await expect(page.locator('.ctx-sync')).toContainText('Синхронизировано');
+    await expect(page.locator('.ctx-sync')).toContainText('синхронизировано');
   } finally { await app.close(); }
 });
 
@@ -34,14 +34,14 @@ test('после закрытия не остаётся процессов postg
   await expect.poll(() => leftoverProcesses(dataDir), { timeout: 20_000 }).toEqual([]);
 });
 
-test('повторный запуск < 15 с; порт 3000 занят сервером — работает; изменения в обе стороны', async () => {
+test('повторный запуск < 15 с (без учёта ввода пароля); порт 3000 занят сервером — работает; изменения в обе стороны', async () => {
   const started = Date.now();
   const app = await launch(dataDir);
   try {
-    const page = await mainWindow(app, 60_000);
+    const { page, toLogin, toWindow } = await unlock(app, demoPassword(), started);
     await expect(page.locator('body')).toContainText('Северный квартал');
-    const seconds = (Date.now() - started) / 1000;
-    console.log(`повторный запуск: ${seconds.toFixed(1)} с`);
+    const seconds = toLogin + toWindow;
+    console.log(`повторный запуск: до экрана входа ${toLogin.toFixed(1)} с + после пароля ${toWindow.toFixed(1)} с = ${seconds.toFixed(1)} с`);
     expect(seconds).toBeLessThan(15);
 
     // Сервер → десктоп: директор в браузере вносит расход — он появляется в десктопе без перезагрузки.

@@ -114,11 +114,42 @@ const [first,second]=[await idem(),await idem()]; assert.equal(first.id,second.i
 const after=await call('/api/v1/overview',undefined,200);
 assert.equal(after.expenses.filter((e:{description:string})=>e.description===`Идемпотентный расход ${tag}`).length,1);
 
+// Офлайн-ввод (P4): устройство прораба → вход устройства → push (applied, конфликт остатка, online_only) → повтор → разбор.
+const fpass=`smoke-${tag}-password`;
+const sync={'Content-Type':'application/json','X-Sync-Protocol':'1'};
+const dev=await fetch(base+'/api/auth/device',{method:'POST',headers:sync,body:JSON.stringify({email:created.user.email,password:fpass,deviceName:`smoke ${tag}`,appVersion:'smoke'})});
+assert.equal(dev.status,201,'регистрация устройства'); const {token}=await dev.json();
+const auth={...sync,Authorization:`Bearer ${token}`};
+const verify=async(pass:string)=>fetch(base+'/api/auth/device/verify',{method:'POST',headers:auth,body:JSON.stringify({password:pass})});
+assert.equal((await verify(fpass)).status,200,'вход устройства');
+assert.equal((await (await verify('неверный-пароль')).json()).error.code,'bad_password');
+const expenseId=crypto.randomUUID(), issueId=crypto.randomUUID();
+const at=new Date(Date.now()-60_000).toISOString();
+const ops=[
+  {opId:crypto.randomUUID(),command:'expenses.create',payload:{id:expenseId,projectId:project.id,category:'Прочее',description:`Офлайн-расход ${tag}`,amount:'10.00'},deviceCreatedAt:at},
+  {opId:crypto.randomUUID(),command:'movements.create',payload:{id:issueId,materialId:material.id,warehouseId:warehouse.id,type:'issue',quantity:10},deviceCreatedAt:at},
+  {opId:crypto.randomUUID(),command:'budgets.create',payload:{projectId:project.id,category:'Прочее',amount:'1.00'},deviceCreatedAt:at},
+];
+const push=async()=>{ const r=await fetch(base+'/api/sync/push',{method:'POST',headers:auth,body:JSON.stringify({ops})}); assert.equal(r.status,200,'push'); return (await r.json()).results; };
+const pushed=await push();
+assert.deepEqual(pushed.map((x:{status:string})=>x.status),['applied','conflict','rejected']);
+assert.equal(pushed[0].entityId,expenseId); assert.equal(pushed[1].error.code,'insufficient_stock'); assert.equal(pushed[2].error.code,'online_only');
+assert.deepEqual(await push(),pushed,'повтор пакета — те же ответы');
+assert.equal((await fetch(base+'/api/sync/push',{method:'POST',headers:sync,body:JSON.stringify({ops})})).status,401,'push без токена');
+assert.equal((await fetch(base+'/api/sync/push',{method:'POST',headers:{...auth,'X-Sync-Protocol':'0'},body:JSON.stringify({ops})})).status,426,'push со старым протоколом');
+const conflicts=(await call('/api/v1/overview',undefined,200)).conflicts;
+assert.ok(conflicts.some((c:{id:string;status:string})=>c.id===pushed[1].conflictId&&c.status==='open'),'конфликт в «Требует решения»');
+await call('/api/v1/conflict-resolve',{conflictId:pushed[1].conflictId,quantity:2});
+await call('/api/v1/conflict-discard',{conflictId:pushed[1].conflictId,comment:'повтор'},409);
+const settled=await push(); assert.equal(settled[1].status,'applied'); assert.equal(settled[1].entityId,issueId);
+const stock=(await call('/api/v1/overview',undefined,200)).materials.find((x:{id:string})=>x.id===material.id); assert.equal(stock.balance,5);
+
 await request(cookie,'PATCH',`/api/admin/users/${created.user.id}`,{isActive:false});
 await request(fcookie,'GET','/api/v1/overview',undefined,401); // блокировка рвёт сессию
 assert.equal(await stream.untilClosed(5000),true,'SSE заблокированного пользователя закрывается');
 stream.close();
+assert.equal((await (await verify(fpass)).json()).error.code,'device_revoked','блокировка отзывает устройство');
 
-console.log(`PASS: anonymous 401 → project → budget → task → purchase → approval (+409 repeat) → receipt → stock issue → progress → expense → plan/fact → audit → insufficient stock → user create → temp password → change → no access 403 → grant → SSE signal in ${latency} ms → idempotent repeat → block`);
+console.log(`PASS: anonymous 401 → project → budget → task → purchase → approval (+409 repeat) → receipt → stock issue → progress → expense → plan/fact → audit → insufficient stock → user create → temp password → change → no access 403 → grant → SSE signal in ${latency} ms → idempotent repeat → device verify → push applied/conflict/online_only (+repeat, 401, 426) → conflict resolve → block → device revoked`);
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

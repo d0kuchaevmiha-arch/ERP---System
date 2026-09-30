@@ -1,0 +1,46 @@
+# Установщик десктопа (§8): npm run dist → dist-desktop/ERP-Энерготех-Setup.exe
+# Белый список файлов: в сборку попадают только бандлы оболочки, экраны, Next standalone (без .env), миграции
+# и бинарники PostgreSQL. Секреты генерируются на компьютере пользователя при первом запуске (§7).
+appId: ru.energotech.erp
+# Латиницей: папка установки %LOCALAPPDATA%\Programs\ERP-Energotech — ASCII-путь для PostgreSQL (§13).
+productName: ERP-Energotech
+copyright: Энерготех
+directories:
+  output: dist-desktop
+files:
+  - package.json
+  - desktop/dist/**/*
+  - desktop/ui/**/*
+  - "!desktop/dist/**/*.map"
+  - "!node_modules/**/*"
+# Процесс sync-agent запускается отдельно (ELECTRON_RUN_AS_NODE) — его бандл вне архива asar.
+asarUnpack:
+  - desktop/dist/agent.js
+extraResources:
+  # Next standalone. electron-builder всегда отбрасывает node_modules в корне источника (from), вложенные — нет,
+  # поэтому источник — .next, а берём только standalone/ (с его node_modules).
+  - from: .next
+    to: app-files
+    filter: ["standalone/**/*", "!**/.env*"]
+  - from: drizzle
+    to: app-files/drizzle
+  - from: drizzle-client
+    to: app-files/drizzle-client
+  - from: node_modules/@embedded-postgres/windows-x64/native
+    to: pgsql
+npmRebuild: false
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+win:
+  target: nsis
+  # Без подписи (допущение §14): SmartScreen покажет предупреждение — см. docs/desktop.md.
+  signAndEditExecutable: false
+nsis:
+  artifactName: ERP-Энерготех-Setup.${ext}
+  oneClick: true
+  perMachine: false
+  shortcutName: Энерготех
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  # Данные пользователя (%APPDATA%\ERP-Energotech: реплика, журналы, секреты) при удалении программы сохраняются.
+  deleteAppDataOnUninstall: false

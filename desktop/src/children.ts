@@ -28,7 +28,8 @@ export type Child = { name: string; proc: ChildProcess; stop: () => Promise<void
 export function startNodeChild(name: string, script: string, env: Record<string, string>, logs: string, onExit?: (code: number | null) => void): Child {
   const out = logStream(logs, name);
   const proc = spawn(process.execPath, [script], {
-    cwd: path.dirname(script),
+    // cwd — реальный каталог (не внутри asar): иначе процесс не запустится.
+    cwd: path.dirname(script).replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`),
     env: { ...process.env, ...env, ELECTRON_RUN_AS_NODE: '1', NODE_ENV: 'production', NODE_USE_SYSTEM_CA: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,

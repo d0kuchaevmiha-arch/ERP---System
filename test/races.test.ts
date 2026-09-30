@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { approvals, auditLogs, materials, notifications, purchases, stockMovements, tasks, warehouses } from '@/db/schema';
+import { approvals, auditLogs, materials, notifications, purchases, stockMovements, taskProgressLog, tasks, warehouses } from '@/db/schema';
 import { runCommand } from '@/server/domain/registry';
 import type { Actor } from '@/server/domain/context';
 import { createMigratedDb, type TestDb } from './helpers/db';
@@ -82,14 +82,19 @@ describe('прогресс (§5.2.4–5.2.5)', () => {
     await expect(run(s.director, 'progress.set', { taskId: task.id, progress: 20 })).resolves.toMatchObject({ actualQuantity: '0.000', progress: 20 });
   });
 
-  it('параллельные изменения прогресса сериализуются: «до» второго = «после» первого', async () => {
+  it('параллельные факты прогресса: оба в истории, текущий — самый поздний по времени ввода, ничего не потеряно', async () => {
     const s = await setup();
     const [task] = await t.db.insert(tasks).values({ projectId: s.project.id, name: 'Работа' }).returning();
     await Promise.all([30, 60].map(progress => run(s.director, 'progress.set', { taskId: task.id, progress })));
-    const log = await t.db.select().from(auditLogs).where(eq(auditLogs.entityId, task.id)).orderBy(auditLogs.createdAt);
-    const pairs = log.map(r => [(r.before as { progress: number }).progress, (r.after as { progress: number }).progress]);
-    expect(pairs.some(([before]) => before === 0)).toBe(true);
-    expect(pairs.some(([before]) => before === 30 || before === 60)).toBe(true);
+    // Правило P2 (§5.1): FOR UPDATE упорядочивает применение; факт, введённый раньше, но дошедший вторым, — только в истории.
+    const facts = await t.db.select().from(taskProgressLog).where(eq(taskProgressLog.taskId, task.id));
+    expect(facts.map(f => f.progress).sort()).toEqual([30, 60]);
+    const maxAt = Math.max(...facts.map(f => f.deviceCreatedAt!.getTime()));
+    // При равном времени ввода (одна миллисекунда) текущим становится обработанный вторым — любой из самых поздних.
+    const candidates = facts.filter(f => f.applied && f.deviceCreatedAt!.getTime() === maxAt).map(f => f.progress);
+    const [after] = await t.db.select().from(tasks).where(eq(tasks.id, task.id));
+    expect(candidates).toContain(after.progress);
+    expect(after.version).toBe(1 + facts.filter(f => f.applied).length);
   });
 });
 

@@ -25,8 +25,9 @@ export function resourcePaths() {
   return {
     root: res,
     pgHome: packaged ? path.join(process.resourcesPath, 'pgsql') : path.join(res, 'node_modules', '@embedded-postgres', 'windows-x64', 'native'),
-    nextServer: path.join(res, packaged ? 'next' : '.next/standalone', 'server.js'),
-    agent: path.join(__dirname, 'agent.js'),
+    nextServer: path.join(res, packaged ? 'standalone' : '.next/standalone', 'server.js'),
+    // Бандл агента распакован из asar (asarUnpack): отдельный процесс Node читает его с диска.
+    agent: path.join(__dirname, 'agent.js').replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`),
     ui: path.join(__dirname, '..', 'ui'),
   };
 }

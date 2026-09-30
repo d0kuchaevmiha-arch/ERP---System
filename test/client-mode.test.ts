@@ -60,7 +60,7 @@ describe('десктоп: запись через сервер (P3)', () => {
   it('нет связи → 503 с понятным текстом; отозванное устройство → 401 с подсказкой', async () => {
     const off = await forwardCommand({ db: local.db, serverUrl: 'http://127.0.0.1:1', token: 'erpd_t', method: 'POST', path: '/api/v1/expenses', body: '{}', timeoutMs: 2000 });
     expect(off.status).toBe(503);
-    expect(JSON.parse(off.body).error.message).toMatch(/Нет связи с сервером/);
+    expect(JSON.parse(off.body).error.message).toMatch(/Нужна связь с сервером/);
     const rev = await forwardCommand({ db: local.db, serverUrl: base, token: 'erpd_t', method: 'POST', path: '/api/v1/revoked', body: '{}' });
     expect(rev.status).toBe(401);
     expect(JSON.parse(rev.body).error.message).toMatch(/подключите устройство заново/);

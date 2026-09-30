@@ -7,6 +7,8 @@ import { clientIp } from './client-ip';
 import { userFromRequest } from './request-user';
 import { isClientMode } from '@/client/local/session';
 import { forwardToServer } from '@/client/local/forward-route';
+import { localCommandResponse } from '@/client/local/write-route';
+import { isOfflineCommand } from '@/client/offline/write';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -40,8 +42,8 @@ export async function commandResponse(req: NextRequest, name: string, input: (bo
   if (foreignOrigin(req)) return errorResponse('Недопустимый источник запроса', 403);
   const who = await userFromRequest(req);
   if (!who) return errorResponse('Войдите в систему', 401);
-  // Десктоп (P3): любая запись выполняется на сервере организации, реплика догоняет результат.
-  if (isClientMode()) return forwardToServer(req);
+  // Десктоп: офлайн-команды — в локальную очередь (P4), остальные — на сервер организации (P3).
+  if (isClientMode()) return isOfflineCommand(name) ? localCommandResponse(name, input(await readJson(req)), who.user) : forwardToServer(req);
   try {
     // Необязательный ключ операции (UUID): повтор запроса с тем же ключом не выполняет команду второй раз.
     const key = req.headers.get('idempotency-key');

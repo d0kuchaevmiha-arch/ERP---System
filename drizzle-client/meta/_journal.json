@@ -8,6 +8,13 @@
       "when": 1790722119795,
       "tag": "0000_sync_state",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790755330703,
+      "tag": "0001_outbox",
+      "breakpoints": true
     }
   ]
 }

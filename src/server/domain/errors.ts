@@ -1,6 +1,6 @@
 // Типизированные ошибки доменного слоя; HTTP-статус выбирается по типу, текст показывается пользователю.
 export class DomainError extends Error {
-  constructor(message: string, readonly status: 400 | 403 | 404 | 409 | 410 | 422, readonly code: string) {
+  constructor(message: string, readonly status: 400 | 403 | 404 | 409 | 410 | 422 | 503, readonly code: string) {
     super(message);
   }
 }

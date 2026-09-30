@@ -53,4 +53,4 @@ export async function waitForSeq(db: Db, seq: number, waitMs: number) {
 }
 
 const json = (status: number, message: string): Forwarded => ({ status, body: JSON.stringify({ error: { message } }), contentType: 'application/json' });
-const offline = () => json(503, 'Нет связи с сервером: запись сейчас недоступна, просмотр данных работает');
+const offline = () => json(503, 'Нужна связь с сервером: эта операция выполняется только онлайн. Выполнение, расходы, заявки и движения склада можно вводить и без связи');

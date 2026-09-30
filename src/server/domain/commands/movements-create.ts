@@ -1,11 +1,12 @@
 import { z } from 'zod';
-import { and, eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { expenses, notifications, stockMovements } from '@/db/schema';
 import { defineCommand } from '../command';
 import { audit, changed, factFields } from '../context';
 import { WRITE_ROLES, orgMaterial, orgWarehouse, requireProjectWrite, requireTaskOfProject } from '../authz';
 import { businessRule, invalid } from '../errors';
 import { costOf } from '../money';
+import { insufficientStockMessage, stockBalance } from '../stock';
 import { quantity, uuid } from '../schemas';
 
 export default defineCommand({
@@ -24,10 +25,9 @@ export default defineCommand({
   async execute(tx, ctx, input, { m, projectId }) {
     // Остаток проверяется под блокировкой пары материал+склад: параллельные списания идут по очереди.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.materialId + input.warehouseId}))`);
-    const total = sql<string>`coalesce(sum(case when ${stockMovements.type} in ('receipt','return','transfer_in') then ${stockMovements.quantity} else -${stockMovements.quantity} end),0)`;
-    const [balance] = await tx.select({ total, enough: sql<boolean>`${total} >= ${String(input.quantity)}::numeric` }).from(stockMovements).where(and(eq(stockMovements.materialId, input.materialId), eq(stockMovements.warehouseId, input.warehouseId)));
+    const balance = await stockBalance(tx, input.materialId, input.warehouseId, input.quantity);
     const outgoing = input.type === 'issue' || input.type === 'writeoff';
-    if (outgoing && !balance.enough) throw businessRule(`Невозможно списать ${input.quantity} ${m.unit} материала «${m.name}»: доступно только ${balance.total} ${m.unit}.`, 'insufficient_stock');
+    if (outgoing && !balance.enough) throw businessRule(insufficientStockMessage(input.quantity, m.unit, m.name, balance.total), 'insufficient_stock');
     const [row] = await tx.insert(stockMovements).values({ ...(input.id && { id: input.id }), materialId: input.materialId, warehouseId: input.warehouseId, projectId, taskId: input.taskId || null, type: input.type, quantity: String(input.quantity), note: input.note, ...factFields(ctx) }).returning();
     await audit(tx, ctx, input.type, 'stock_movement', row.id, null, row);
     changed(ctx, 'stock_movements', row.id, projectId);

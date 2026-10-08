@@ -49,7 +49,7 @@
   },
   "version": "0.5.1",
   "main": "desktop/dist/main.js",
-  "description": "ERP «Энерготех» — управление стройкой",
+  "description": "ERP для строительной компании: веб (Next.js, PostgreSQL) и офлайн-десктоп для Windows (Electron) с синхронизацией",
   "optionalDependencies": {
     "@embedded-postgres/windows-x64": "16.14.0-beta.17"
   },
